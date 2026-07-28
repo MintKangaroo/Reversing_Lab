@@ -1,0 +1,14 @@
+# Runtime dependencies for the Reversing Lab backend.
+# Pinned to compatible lower bounds; see pyproject.toml for the authoritative list.
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+pydantic>=2.6
+pydantic-settings>=2.2
+SQLAlchemy>=2.0
+capstone>=5.0
+lief>=0.14
+pyelftools>=0.30
+pefile>=2023.2.7
+
+# Development / testing (install with: pip install -r requirements.txt -r requirements-dev.txt)

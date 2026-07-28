@@ -1,0 +1,182 @@
+:root {
+  --bg: #0d1117;
+  --bg-elevated: #161b22;
+  --bg-inset: #010409;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --accent: #58a6ff;
+  --accent-dim: #1f6feb;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --mono: 'SFMono-Regular', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+code, .mono { font-family: var(--mono); }
+
+/* ---- Layout ---------------------------------------------------------------- */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.app-header h1 { font-size: 18px; margin: 0; letter-spacing: 0.3px; }
+.app-header .logo { font-size: 22px; }
+.app-header .spacer { flex: 1; }
+.app-header .version { color: var(--text-muted); font-size: 12px; }
+
+.layout { display: flex; min-height: calc(100vh - 53px); }
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 16px;
+  overflow-y: auto;
+}
+.main { flex: 1; padding: 20px; overflow-x: auto; min-width: 0; }
+
+/* ---- Sidebar --------------------------------------------------------------- */
+.section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin: 18px 0 8px;
+}
+.upload-drop {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.upload-drop:hover, .upload-drop.drag { border-color: var(--accent); background: rgba(88,166,255,0.06); }
+.upload-drop .hint { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
+
+.binary-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+.binary-item:hover { background: var(--bg-inset); }
+.binary-item.active { border-color: var(--accent-dim); background: rgba(31,111,235,0.15); }
+.binary-item .name { font-weight: 600; word-break: break-all; }
+.binary-item .meta { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+
+/* ---- Tabs ------------------------------------------------------------------ */
+.tabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tab {
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+/* ---- Cards & grids --------------------------------------------------------- */
+.card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.kv { display: flex; flex-direction: column; gap: 3px; }
+.kv .k { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.kv .v { font-family: var(--mono); font-size: 14px; word-break: break-all; }
+
+/* ---- Badges ---------------------------------------------------------------- */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.badge.on { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge.off { background: rgba(248,81,73,0.15); color: var(--red); }
+.badge.neutral { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+.badge.easy { background: rgba(63,185,80,0.15); color: var(--green); }
+.badge.medium { background: rgba(210,153,34,0.15); color: var(--yellow); }
+.badge.hard { background: rgba(248,81,73,0.15); color: var(--red); }
+
+/* ---- Tables ---------------------------------------------------------------- */
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data th, table.data td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); }
+table.data th { color: var(--text-muted); font-weight: 600; position: sticky; top: 0; background: var(--bg-elevated); }
+table.data td.mono, table.data td .mono { font-family: var(--mono); }
+table.data tr:hover td { background: rgba(88,166,255,0.04); }
+.table-scroll { max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+
+/* ---- Hex viewer ------------------------------------------------------------ */
+.hex { font-family: var(--mono); font-size: 13px; line-height: 1.55; white-space: pre; }
+.hex .off { color: var(--accent); }
+.hex .ascii { color: var(--green); }
+
+/* ---- Disassembly ----------------------------------------------------------- */
+.disasm { font-family: var(--mono); font-size: 13px; }
+.disasm .row { display: grid; grid-template-columns: 120px 160px 1fr; gap: 12px; padding: 2px 8px; border-radius: 4px; }
+.disasm .row:hover { background: rgba(88,166,255,0.06); }
+.disasm .addr { color: var(--accent); }
+.disasm .bytes { color: var(--text-muted); }
+.disasm .mnemonic { color: var(--yellow); }
+.disasm .flow { color: var(--red); }
+
+/* ---- CFG ------------------------------------------------------------------- */
+.cfg-block { fill: var(--bg-elevated); stroke: var(--border); }
+.cfg-block-title { fill: var(--accent); font: 600 12px var(--mono); }
+.cfg-insn { fill: var(--text); font: 12px var(--mono); }
+.cfg-edge { stroke: var(--text-muted); stroke-width: 1.5; fill: none; }
+.cfg-edge-taken { stroke: var(--green); }
+.cfg-edge-fall { stroke: var(--yellow); }
+
+/* ---- Buttons & inputs ------------------------------------------------------ */
+button.btn {
+  background: var(--accent-dim); color: white; border: none; border-radius: 6px;
+  padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: 600;
+}
+button.btn:hover { background: var(--accent); }
+button.btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+button.btn.secondary:hover { border-color: var(--accent); }
+input.text, select.text {
+  background: var(--bg-inset); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 8px 10px; font-size: 13px; font-family: var(--mono);
+}
+input.text:focus { outline: none; border-color: var(--accent); }
+
+/* ---- Challenges ------------------------------------------------------------ */
+.challenge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.challenge-card { display: flex; flex-direction: column; gap: 10px; }
+.challenge-card h3 { margin: 0; font-size: 16px; }
+.challenge-card .desc { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.challenge-card .hint { font-size: 12px; color: var(--yellow); background: rgba(210,153,34,0.08); padding: 8px; border-radius: 6px; }
+.challenge-card .row { display: flex; gap: 8px; align-items: center; }
+.solved-tag { color: var(--green); font-weight: 700; }
+
+/* ---- Misc ------------------------------------------------------------------ */
+.muted { color: var(--text-muted); }
+.center-empty { text-align: center; color: var(--text-muted); padding: 60px 20px; }
+.error-banner { background: rgba(248,81,73,0.12); border: 1px solid var(--red); color: var(--red); padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; }
+.progressbar { height: 8px; background: var(--bg-inset); border-radius: 999px; overflow: hidden; }
+.progressbar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--green), var(--yellow), var(--red)); }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }

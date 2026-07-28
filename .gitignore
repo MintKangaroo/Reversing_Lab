@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime data / databases
+*.db
+data/
+backend/data/
+reversing_lab.db
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+
+# Editors / OS
+.env
+.DS_Store
+.idea/
+.vscode/
+*.swp
