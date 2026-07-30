@@ -251,6 +251,45 @@ class CallGraphSchema(BaseModel):
     truncated: bool
 
 
+class DecompiledVariableSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    name: str
+    type_name: str | None
+    storage: str | None
+    confidence: float
+    provenance: str
+
+
+class DecompiledParameterSchema(DecompiledVariableSchema):
+    pass
+
+
+class SourceMapEntrySchema(BaseModel):
+    model_config = _FROM_ATTRS
+    line: int
+    address_start: int
+    address_end: int
+    confidence: float
+    provenance: str
+
+
+class DecompiledFunctionSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    function_address: int
+    function_name: str
+    language: str
+    code: str
+    warnings: list[str]
+    confidence: float
+    variables: list[DecompiledVariableSchema]
+    parameters: list[DecompiledParameterSchema]
+    return_type: str | None
+    source_map: list[SourceMapEntrySchema]
+    provider: str
+    elapsed_ms: int
+    provenance: str
+
+
 # --- Analyst overlays and projects -----------------------------------------------
 class AnnotationWriteSchema(BaseModel):
     address: int = Field(ge=0)

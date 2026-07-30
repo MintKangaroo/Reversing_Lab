@@ -85,6 +85,14 @@ class Settings(BaseSettings):
     integration_timeout_seconds: float = Field(
         default=30.0, description="Timeout for external-tool subprocess calls."
     )
+    max_decompiler_seconds: float = Field(
+        default=45.0,
+        description="Hard timeout for one external decompiler request.",
+    )
+    max_external_output_bytes: int = Field(
+        default=2 * 1024 * 1024,
+        description="Maximum structured output accepted from an external tool.",
+    )
 
 
 @lru_cache(maxsize=1)

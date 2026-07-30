@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ...analysis import build_call_graph, get_function
 from ...database import AnnotationRepository, BinaryRepository, BookmarkRepository
+from ...config import get_settings
+from ...decompiler import DecompileOptions, decompile_function
 from ...disassembler import disassemble
 from ..dependencies import (
     get_annotation_repository,
@@ -21,6 +24,7 @@ from ..schemas import (
     BookmarkWriteSchema,
     CallGraphSchema,
     DisassemblySchema,
+    DecompiledFunctionSchema,
     FunctionListSchema,
     FunctionSchema,
 )
@@ -114,6 +118,34 @@ def function_disassembly(
             count=max(function.instruction_count, 1),
         )
     )
+
+
+@router.get(
+    "/{sha256}/functions/{address}/decompile",
+    response_model=DecompiledFunctionSchema,
+)
+def function_decompile(
+    sha256: str,
+    address: str,
+    provider: str = Query(
+        default="auto", pattern="^(auto|ghidra|pseudo_c)$"
+    ),
+    repo: BinaryRepository = Depends(get_binary_repository),
+) -> DecompiledFunctionSchema:
+    _, _, functions = _load(repo, sha256)
+    function = get_function(functions, parse_address(address))
+    settings = get_settings()
+    record = repo.get(sha256)
+    result = decompile_function(
+        binary_path=Path(record.storage_path),
+        address=function.address,
+        provider=provider,
+        options=DecompileOptions(
+            timeout_seconds=settings.max_decompiler_seconds,
+            max_output_bytes=settings.max_external_output_bytes,
+        ),
+    )
+    return DecompiledFunctionSchema.model_validate(result)
 
 
 @router.get("/{sha256}/functions/{address}", response_model=FunctionSchema)
