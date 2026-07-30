@@ -104,3 +104,24 @@ class CallGraph:
     edges: tuple[CallGraphEdge, ...]
     root_address: int | None
     truncated: bool
+
+
+@dataclass(frozen=True, slots=True)
+class FlowStage:
+    id: str
+    title: str
+    summary: str
+    function_addresses: tuple[int, ...]
+    evidence: tuple[Evidence, ...]
+    confidence: float
+    provenance: ProvenanceKind = ProvenanceKind.INFERRED
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramFlowSummary:
+    entry_point: int
+    stages: tuple[FlowStage, ...]
+    major_branches: tuple[Evidence, ...]
+    failure_paths: tuple[Evidence, ...]
+    anti_analysis: tuple[Evidence, ...]
+    limitations: tuple[str, ...]

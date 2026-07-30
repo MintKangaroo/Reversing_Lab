@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 
-from ..analysis import analyze_functions
+from ..analysis.functions import analyze_functions
 from ..analysis.models import Evidence, Finding, ProvenanceKind
 from ..disassembler import disassemble
 from ..parser.models import BinaryInfo

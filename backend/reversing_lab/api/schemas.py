@@ -189,6 +189,18 @@ class BasicBlockSchema(BaseModel):
     end_address: int
     instructions: list[InstructionSchema]
     successors: list[int]
+    is_loop_header: bool = False
+    is_unreachable: bool = False
+    immediate_dominator: int | None = None
+
+
+class CfgEdgeSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    source: int
+    target: int | None
+    kind: str
+    instruction_address: int
+    target_address: int | None = None
 
 
 class CfgSchema(BaseModel):
@@ -197,6 +209,9 @@ class CfgSchema(BaseModel):
     blocks: list[BasicBlockSchema]
     edges: list[tuple[int, int]]
     truncated: bool
+    typed_edges: list[CfgEdgeSchema] = Field(default_factory=list)
+    loop_headers: list[int] = Field(default_factory=list)
+    unreachable_blocks: list[int] = Field(default_factory=list)
 
 
 # --- Higher-level analysis --------------------------------------------------------
@@ -227,6 +242,27 @@ class FindingSchema(BaseModel):
     address_end: int | None = None
     related_function: int | None = None
     mitre_id: str | None = None
+
+
+class FlowStageSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: str
+    title: str
+    summary: str
+    function_addresses: list[int]
+    evidence: list[EvidenceSchema]
+    confidence: float
+    provenance: str
+
+
+class ProgramFlowSummarySchema(BaseModel):
+    model_config = _FROM_ATTRS
+    entry_point: int
+    stages: list[FlowStageSchema]
+    major_branches: list[EvidenceSchema]
+    failure_paths: list[EvidenceSchema]
+    anti_analysis: list[EvidenceSchema]
+    limitations: list[str]
 
 
 class FunctionSchema(BaseModel):

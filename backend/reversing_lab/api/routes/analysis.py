@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from ...analysis import build_call_graph, get_function
+from ...analysis import build_call_graph, get_function, summarize_program_flow
 from ...analysis.models import Evidence, Finding, ProvenanceKind
 from ...analyzer import analyze_obfuscation, detect_packing
 from ...database import AnnotationRepository, BinaryRepository, BookmarkRepository
@@ -30,6 +30,7 @@ from ..schemas import (
     FunctionListSchema,
     FunctionSchema,
     FindingSchema,
+    ProgramFlowSummarySchema,
 )
 from ..services import functions_cached, parse_cached
 
@@ -155,6 +156,15 @@ def all_findings(
             ),
         )
     return [FindingSchema.model_validate(item) for item in findings]
+
+
+@router.get("/{sha256}/flow-summary", response_model=ProgramFlowSummarySchema)
+def flow_summary(
+    sha256: str,
+    repo: BinaryRepository = Depends(get_binary_repository),
+) -> ProgramFlowSummarySchema:
+    data, info, _ = _load(repo, sha256)
+    return ProgramFlowSummarySchema.model_validate(summarize_program_flow(info, data))
 
 
 @router.get("/{sha256}/functions/{address}/disassembly", response_model=DisassemblySchema)

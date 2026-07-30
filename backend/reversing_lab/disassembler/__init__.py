@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from .cfg import BasicBlock, ControlFlowGraph, build_cfg
+from .cfg import BasicBlock, CfgEdge, ControlFlowGraph, build_cfg
 from .disassembler import DisassemblyResult, Instruction, disassemble
 
 __all__ = [
     "BasicBlock",
+    "CfgEdge",
     "ControlFlowGraph",
     "DisassemblyResult",
     "Instruction",

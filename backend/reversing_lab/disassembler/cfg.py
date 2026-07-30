@@ -15,7 +15,7 @@ recorded as block terminators without an outgoing edge.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ..config import get_settings
 from ..parser.models import BinaryInfo
@@ -34,6 +34,20 @@ class BasicBlock:
     end_address: int  # address just past the last instruction
     instructions: tuple[Instruction, ...]
     successors: tuple[int, ...]  # ids of successor blocks
+    is_loop_header: bool = False
+    is_unreachable: bool = False
+    immediate_dominator: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CfgEdge:
+    """Typed edge; `target` is absent for calls/returns/indirect transfers."""
+
+    source: int
+    target: int | None
+    kind: str
+    instruction_address: int
+    target_address: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +58,9 @@ class ControlFlowGraph:
     blocks: tuple[BasicBlock, ...]
     edges: tuple[tuple[int, int], ...]  # (from_block_id, to_block_id)
     truncated: bool
+    typed_edges: tuple[CfgEdge, ...] = ()
+    loop_headers: tuple[int, ...] = ()
+    unreachable_blocks: tuple[int, ...] = ()
 
 
 def _branch_target(insn: Instruction) -> int | None:
@@ -140,6 +157,9 @@ def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> Cont
 
     # Step 3: slice into blocks.
     sorted_leaders = sorted(leaders)
+    if len(sorted_leaders) > settings.max_cfg_nodes:
+        sorted_leaders = sorted_leaders[: settings.max_cfg_nodes]
+        truncated = True
     leader_to_id = {addr: idx for idx, addr in enumerate(sorted_leaders)}
     block_instructions: dict[int, list[Instruction]] = {addr: [] for addr in sorted_leaders}
 
@@ -191,9 +211,124 @@ def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> Cont
             )
         )
 
+    # Reachability and dominators are computed on the recovered finite graph.
+    successor_map = {block.id: set(block.successors) for block in blocks}
+    entry_id = blocks[0].id
+    reachable = {entry_id}
+    frontier = [entry_id]
+    while frontier:
+        current = frontier.pop()
+        for successor in successor_map.get(current, set()):
+            if successor not in reachable:
+                reachable.add(successor)
+                frontier.append(successor)
+
+    block_ids = {block.id for block in blocks}
+    predecessors = {
+        block_id: {source for source, target in edges if target == block_id}
+        for block_id in block_ids
+    }
+    dominators = {
+        block_id: ({entry_id} if block_id == entry_id else set(reachable))
+        for block_id in reachable
+    }
+    changed = True
+    while changed:
+        changed = False
+        for block_id in reachable - {entry_id}:
+            incoming = predecessors[block_id] & reachable
+            intersection = (
+                set.intersection(*(dominators[item] for item in incoming))
+                if incoming
+                else set()
+            )
+            updated = {block_id} | intersection
+            if updated != dominators[block_id]:
+                dominators[block_id] = updated
+                changed = True
+
+    immediate_dominators: dict[int, int | None] = {entry_id: None}
+    for block_id in reachable - {entry_id}:
+        strict = dominators[block_id] - {block_id}
+        immediate_dominators[block_id] = next(
+            (
+                candidate
+                for candidate in strict
+                if all(
+                    candidate == other or other in dominators[candidate]
+                    for other in strict
+                )
+            ),
+            None,
+        )
+    loop_headers = {
+        target
+        for source, target in edges
+        if target in dominators.get(source, set())
+    }
+    unreachable = block_ids - reachable
+    blocks = [
+        replace(
+            block,
+            is_loop_header=block.id in loop_headers,
+            is_unreachable=block.id in unreachable,
+            immediate_dominator=immediate_dominators.get(block.id),
+        )
+        for block in blocks
+    ]
+
+    typed_edges: list[CfgEdge] = []
+    for block in blocks:
+        last = block.instructions[-1]
+        if _is_return(last):
+            typed_edges.append(
+                CfgEdge(block.id, None, "return", last.address, None)
+            )
+        elif _is_jump(last):
+            target_address = _branch_target(last)
+            if target_address is None:
+                typed_edges.append(
+                    CfgEdge(block.id, None, "indirect", last.address, None)
+                )
+            else:
+                for index, target in enumerate(block.successors):
+                    kind = (
+                        "unconditional"
+                        if last.mnemonic in _UNCONDITIONAL
+                        else ("conditional" if index == 0 else "fallthrough")
+                    )
+                    typed_edges.append(
+                        CfgEdge(
+                            block.id,
+                            target,
+                            kind,
+                            last.address,
+                            target_address if index == 0 else None,
+                        )
+                    )
+        else:
+            for target in block.successors:
+                typed_edges.append(
+                    CfgEdge(block.id, target, "fallthrough", last.address)
+                )
+        for instruction in block.instructions:
+            if "call" in instruction.groups:
+                typed_edges.append(
+                    CfgEdge(
+                        block.id,
+                        None,
+                        "call",
+                        instruction.address,
+                        _branch_target(instruction),
+                    )
+                )
+
     return ControlFlowGraph(
         entry_address=start,
         blocks=tuple(blocks),
         edges=tuple(edges),
         truncated=truncated,
+        typed_edges=tuple(typed_edges),
+        loop_headers=tuple(sorted(loop_headers)),
+        unreachable_blocks=tuple(sorted(unreachable)),
     )
