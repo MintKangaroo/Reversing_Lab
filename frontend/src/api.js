@@ -93,6 +93,25 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ operation, input, parameters }),
     }),
+  uploadMemoryDump: (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request('/memory-dumps', { method: 'POST', body: form });
+  },
+  memoryDump: (id) => request(`/memory-dumps/${id}`),
+  startMemoryAnalysis: (id, useVolatility = true) =>
+    request(`/memory-dumps/${id}/analysis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ use_volatility: useVolatility }),
+    }),
+  memorySummary: (id) => request(`/memory-dumps/${id}/analysis`),
+  memoryProcesses: (id) => request(`/memory-dumps/${id}/processes`),
+  memoryRegions: (id) => request(`/memory-dumps/${id}/regions`),
+  memoryFindings: (id) => request(`/memory-dumps/${id}/findings`),
+  jobs: () => request('/jobs'),
+  job: (id) => request(`/jobs/${id}`),
+  cancelJob: (id) => request(`/jobs/${id}/cancel`, { method: 'POST' }),
 };
 
 // Format a JS number as 0x-prefixed hex (addresses come from the API as integers).

@@ -15,6 +15,7 @@ import { CallGraphTab } from './components/CallGraphTab.jsx';
 import { PseudoCodeTab } from './components/PseudoCodeTab.jsx';
 import { FindingsTab } from './components/FindingsTab.jsx';
 import { ProgramFlowTab } from './components/ProgramFlowTab.jsx';
+import { MemoryWorkspace } from './components/MemoryWorkspace.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -529,14 +530,28 @@ function Inspector({ info, selectedRecord, route, sha, functionDetail, onFunctio
 
 function BottomPanel({ error }) {
   const [tab, setTab] = useState('jobs');
+  const [jobItems, setJobItems] = useState([]);
   const tabs = ['console', 'jobs', 'findings', 'explanations'];
+
+  useEffect(() => {
+    let active = true;
+    const refreshJobs = () => api.jobs().then((items) => active && setJobItems(items)).catch(() => {});
+    refreshJobs();
+    const timer = window.setInterval(refreshJobs, 1800);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const activeJobs = jobItems.filter((item) => ['queued', 'running'].includes(item.state)).length;
   return (
     <div className="bottom-content">
       <div className="bottom-tabs">
         {tabs.map((item) => (
           <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>
             {item === 'explanations' ? 'AI EXPLANATION' : item.toUpperCase()}
-            {item === 'jobs' && <span className="count-badge">0</span>}
+            {item === 'jobs' && <span className="count-badge">{activeJobs}</span>}
           </button>
         ))}
         <span className="toolbar-spacer" />
@@ -546,7 +561,16 @@ function BottomPanel({ error }) {
         {error ? <ErrorBanner error={error} /> : (
           <>
             {tab === 'console' && <div className="console-line"><span>[ready]</span> Reversing Lab workbench initialized.</div>}
-            {tab === 'jobs' && <div className="panel-empty inline">No analysis jobs are running.</div>}
+            {tab === 'jobs' && (jobItems.length ? (
+              <div className="bottom-job-list">
+                {jobItems.slice(0, 20).map((item) => (
+                  <div key={item.id}>
+                    <span className={`job-state state-${item.state}`}>{item.state}</span>
+                    <code>{item.kind}</code><span>{item.message}</span><b>{item.progress}%</b>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="panel-empty inline">No analysis jobs have been created.</div>)}
             {tab === 'findings' && <div className="panel-empty inline">Select and analyze a sample to review findings.</div>}
             {tab === 'explanations' && <div className="panel-empty inline">Automated explanations will always link back to binary evidence.</div>}
           </>
@@ -664,7 +688,8 @@ export default function App() {
         />
       )
       : <Empty label="No sample selected" detail="Choose a sample from the explorer or upload a new authorized binary." />;
-  } else if (route === 'ctf') workspace = <div className="page-scroll"><Challenges /></div>;
+  } else if (route === 'memory') workspace = <MemoryWorkspace />;
+  else if (route === 'ctf') workspace = <div className="page-scroll"><Challenges /></div>;
   else workspace = <CapabilityPage kind={route} />;
 
   return (
