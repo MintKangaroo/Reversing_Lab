@@ -46,6 +46,8 @@ export const api = {
       body: JSON.stringify({ acknowledged: true }),
     }),
   artifacts: (sha) => request(`/binaries/${sha}/artifacts`),
+  report: (sha) => request(`/binaries/${sha}/report?format=json`),
+  reportUrl: (sha, format = 'json') => `${BASE}/binaries/${sha}/report?format=${format}`,
   disassembly: (sha, count = 200) => request(`/binaries/${sha}/disassembly?count=${count}`),
   cfg: (sha) => request(`/binaries/${sha}/cfg`),
   functions: (sha, offset = 0, limit = 1000) =>

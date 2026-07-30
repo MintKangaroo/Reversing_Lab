@@ -761,6 +761,23 @@ a.btn.secondary { border-color: var(--border); background: var(--surface-2); }
 .compact-lists > div input { flex: 1; min-width: 0; }
 .compact-lists ul, .compact-lists ol { margin: 6px 0 13px; padding-left: 20px; color: var(--text-muted); }
 .ctf-main .decoder-playground { margin-top: 10px; }
+.report-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-1);
+}
+.report-hero h2 { margin: 8px 0 5px; }
+.report-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.report-metrics { margin-top: 10px; }
+.report-sections { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 10px; }
+.report-sections article { padding: 14px; border: 1px solid var(--border-soft); border-radius: 5px; background: var(--surface-1); }
+.report-sections h3 { margin: 0 0 6px; font-size: 11px; }
+.report-sections p { margin: 0; color: var(--text-muted); line-height: 1.5; }
 
 @media (max-width: 1220px) {
   .app-frame { min-width: 1000px; }
@@ -770,6 +787,7 @@ a.btn.secondary { border-color: var(--border); background: var(--surface-2); }
   .header-context .context-chip, .header-context .hash-chip { display: none; }
   .ctf-grid { grid-template-columns: 1fr; }
   .ctf-card.checklist, .compact-lists { grid-column: auto; grid-row: auto; }
+  .report-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

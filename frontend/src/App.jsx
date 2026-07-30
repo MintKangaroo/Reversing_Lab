@@ -17,6 +17,7 @@ import { ProgramFlowTab } from './components/ProgramFlowTab.jsx';
 import { MemoryWorkspace } from './components/MemoryWorkspace.jsx';
 import { DynamicWorkspace } from './components/DynamicWorkspace.jsx';
 import { CtfWorkspace } from './components/CtfWorkspace.jsx';
+import { ReportsWorkspace } from './components/ReportsWorkspace.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -692,6 +693,7 @@ export default function App() {
   } else if (route === 'memory') workspace = <MemoryWorkspace />;
   else if (route === 'dynamic') workspace = <DynamicWorkspace sample={selectedRecord} />;
   else if (route === 'ctf') workspace = <CtfWorkspace sample={selectedRecord} />;
+  else if (route === 'reports') workspace = <ReportsWorkspace sample={selectedRecord} />;
   else workspace = <CapabilityPage kind={route} />;
 
   return (

@@ -28,6 +28,7 @@ from .routes import (
     jobs,
     memory,
     projects,
+    reports,
     tooling,
     tools,
 )
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(memory.router, prefix=api_prefix)
     app.include_router(dynamic.router, prefix=api_prefix)
     app.include_router(ctf.router, prefix=api_prefix)
+    app.include_router(reports.router, prefix=api_prefix)
     app.include_router(challenges.router, prefix=api_prefix)
     app.include_router(integrations.router, prefix=api_prefix)
 
