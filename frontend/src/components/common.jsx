@@ -10,22 +10,54 @@ export function DifficultyBadge({ level }) {
 
 export function ErrorBanner({ error }) {
   if (!error) return null;
-  return <div className="error-banner">⚠ {String(error)}</div>;
+  return <div className="error-banner" role="alert">⚠ {String(error)}</div>;
 }
 
 export function Loading({ label = 'Loading…' }) {
-  return <div className="center-empty">{label}</div>;
+  return (
+    <div className="state-panel" role="status" aria-live="polite">
+      <span className="spinner" aria-hidden="true" />
+      <span>{label}</span>
+    </div>
+  );
 }
 
-export function Empty({ label }) {
-  return <div className="center-empty">{label}</div>;
+export function Empty({ label, detail, action }) {
+  return (
+    <div className="state-panel empty-state">
+      <span className="state-icon" aria-hidden="true">◇</span>
+      <strong>{label}</strong>
+      {detail && <span>{detail}</span>}
+      {action}
+    </div>
+  );
+}
+
+export function ProvenanceBadge({ kind = 'heuristic' }) {
+  const labels = {
+    verified: 'Verified',
+    heuristic: 'Heuristic',
+    inferred: 'Inferred',
+    dynamic: 'Dynamic observation',
+    user: 'User annotation',
+  };
+  return <span className={`provenance provenance-${kind}`}>{labels[kind] || kind}</span>;
+}
+
+export function StatusDot({ status = 'idle', label }) {
+  return (
+    <span className={`status-dot status-${status}`}>
+      <span aria-hidden="true" />
+      {label || status}
+    </span>
+  );
 }
 
 // A generic, sticky-header data table. `columns` = [{ key, header, render?, mono? }].
 export function DataTable({ columns, rows, emptyLabel = 'No data.' }) {
   if (!rows || rows.length === 0) return <Empty label={emptyLabel} />;
   return (
-    <div className="table-scroll">
+    <div className="table-scroll" role="region" aria-label="Analysis data" tabIndex={0}>
       <table className="data">
         <thead>
           <tr>
