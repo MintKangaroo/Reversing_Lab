@@ -112,6 +112,21 @@ export const api = {
   jobs: () => request('/jobs'),
   job: (id) => request(`/jobs/${id}`),
   cancelJob: (id) => request(`/jobs/${id}/cancel`, { method: 'POST' }),
+  dynamicReadiness: (sha = null, acknowledged = false) =>
+    request(`/dynamic-analysis/readiness?acknowledged=${acknowledged}${sha ? `&binary_sha256=${sha}` : ''}`),
+  startDynamicAnalysis: (sha) =>
+    request('/dynamic-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ binary_sha256: sha, acknowledged: true }),
+    }),
+  dynamicRun: (id) => request(`/dynamic-analysis/${id}`),
+  cancelDynamicRun: (id) => request(`/dynamic-analysis/${id}/cancel`, { method: 'POST' }),
+  dynamicEvents: (id, params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/dynamic-analysis/${id}/events?${query}`);
+  },
+  dynamicArtifacts: (id) => request(`/dynamic-analysis/${id}/artifacts`),
 };
 
 // Format a JS number as 0x-prefixed hex (addresses come from the API as integers).
