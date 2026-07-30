@@ -9,12 +9,14 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
+from ..analysis import FunctionAnalysis, analyze_functions
 from ..parser import BinaryInfo, parse_binary
 
 # sha256 -> parsed BinaryInfo. Small and bounded; parsing is deterministic so a hit is
 # always valid for the immutable content identified by that hash.
 _PARSE_CACHE: "OrderedDict[str, BinaryInfo]" = OrderedDict()
 _CACHE_CAPACITY = 64
+_FUNCTION_CACHE: "OrderedDict[str, tuple[FunctionAnalysis, ...]]" = OrderedDict()
 
 
 def parse_cached(sha256: str, data: bytes) -> BinaryInfo:
@@ -35,3 +37,19 @@ def parse_cached(sha256: str, data: bytes) -> BinaryInfo:
 def clear_cache() -> None:
     """Drop all cached parses (used by tests)."""
     _PARSE_CACHE.clear()
+    _FUNCTION_CACHE.clear()
+
+
+def functions_cached(
+    sha256: str, info: BinaryInfo, data: bytes
+) -> tuple[FunctionAnalysis, ...]:
+    cached = _FUNCTION_CACHE.get(sha256)
+    if cached is not None:
+        _FUNCTION_CACHE.move_to_end(sha256)
+        return cached
+    functions = analyze_functions(info, data)
+    _FUNCTION_CACHE[sha256] = functions
+    _FUNCTION_CACHE.move_to_end(sha256)
+    while len(_FUNCTION_CACHE) > _CACHE_CAPACITY:
+        _FUNCTION_CACHE.popitem(last=False)
+    return functions

@@ -44,6 +44,26 @@ class Settings(BaseSettings):
         default=8_000,
         description="Hard cap on instructions considered when building a CFG.",
     )
+    max_function_scan_instructions: int = Field(
+        default=50_000,
+        description="Hard cap on instructions scanned while recovering functions.",
+    )
+    max_instructions_per_function: int = Field(
+        default=4_000,
+        description="Hard cap on instructions attributed to one recovered function.",
+    )
+    max_functions: int = Field(
+        default=5_000,
+        description="Hard cap on recovered functions per sample.",
+    )
+    max_cfg_nodes: int = Field(
+        default=2_000,
+        description="Hard cap on basic blocks exposed for one CFG.",
+    )
+    max_call_graph_nodes: int = Field(
+        default=2_000,
+        description="Hard cap on nodes exposed in a call graph.",
+    )
     max_strings: int = Field(
         default=10_000,
         description="Hard cap on extracted strings returned per request.",

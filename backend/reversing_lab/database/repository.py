@@ -9,13 +9,21 @@ from __future__ import annotations
 import hashlib
 import logging
 from pathlib import Path
+from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..errors import BinaryNotFoundError
-from .models import BinaryRecord, ChallengeAttempt
+from .models import (
+    BinaryRecord,
+    BookmarkRecord,
+    ChallengeAttempt,
+    ProjectRecord,
+    ProjectSampleRecord,
+    UserAnnotationRecord,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -97,3 +105,149 @@ class ChallengeAttemptRepository:
         """Return the set of challenge slugs that have at least one correct attempt."""
         stmt = select(ChallengeAttempt.challenge_slug).where(ChallengeAttempt.correct.is_(True))
         return set(self._session.scalars(stmt))
+
+
+class ProjectRepository:
+    """CRUD for analyst projects and their sample membership."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def create(self, name: str, description: str = "") -> ProjectRecord:
+        project = ProjectRecord(id=str(uuid4()), name=name, description=description)
+        self._session.add(project)
+        self._session.commit()
+        return project
+
+    def list(self, limit: int = 100) -> list[ProjectRecord]:
+        stmt = select(ProjectRecord).order_by(ProjectRecord.updated_at.desc()).limit(limit)
+        return list(self._session.scalars(stmt))
+
+    def get(self, project_id: str) -> ProjectRecord:
+        project = self._session.get(ProjectRecord, project_id)
+        if project is None:
+            raise BinaryNotFoundError(f"No project with id {project_id!r}.")
+        return project
+
+    def update(
+        self, project_id: str, name: str | None, description: str | None
+    ) -> ProjectRecord:
+        project = self.get(project_id)
+        if name is not None:
+            project.name = name
+        if description is not None:
+            project.description = description
+        self._session.commit()
+        return project
+
+    def add_sample(self, project_id: str, binary_sha256: str) -> ProjectSampleRecord:
+        self.get(project_id)
+        if self._session.get(BinaryRecord, binary_sha256) is None:
+            raise BinaryNotFoundError(f"No binary with id {binary_sha256!r}.")
+        key = {"project_id": project_id, "binary_sha256": binary_sha256}
+        existing = self._session.get(ProjectSampleRecord, key)
+        if existing is not None:
+            return existing
+        membership = ProjectSampleRecord(**key)
+        self._session.add(membership)
+        self._session.commit()
+        return membership
+
+    def sample_hashes(self, project_id: str) -> list[str]:
+        self.get(project_id)
+        stmt = (
+            select(ProjectSampleRecord.binary_sha256)
+            .where(ProjectSampleRecord.project_id == project_id)
+            .order_by(ProjectSampleRecord.added_at.desc())
+        )
+        return list(self._session.scalars(stmt))
+
+
+class AnnotationRepository:
+    """Persistent analyst overlays, kept separate from immutable analysis."""
+
+    _ALLOWED_KINDS = {"function_name", "comment"}
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def upsert(
+        self, binary_sha256: str, address: int, kind: str, value: str
+    ) -> UserAnnotationRecord:
+        if kind not in self._ALLOWED_KINDS:
+            raise ValueError(f"Unsupported annotation kind: {kind!r}.")
+        stmt = select(UserAnnotationRecord).where(
+            UserAnnotationRecord.binary_sha256 == binary_sha256,
+            UserAnnotationRecord.address == address,
+            UserAnnotationRecord.kind == kind,
+        )
+        record = self._session.scalar(stmt)
+        if record is None:
+            record = UserAnnotationRecord(
+                binary_sha256=binary_sha256,
+                address=address,
+                kind=kind,
+                value=value,
+            )
+            self._session.add(record)
+        else:
+            record.value = value
+        self._session.commit()
+        return record
+
+    def list(
+        self, binary_sha256: str, address: int | None = None
+    ) -> list[UserAnnotationRecord]:
+        stmt = select(UserAnnotationRecord).where(
+            UserAnnotationRecord.binary_sha256 == binary_sha256
+        )
+        if address is not None:
+            stmt = stmt.where(UserAnnotationRecord.address == address)
+        return list(self._session.scalars(stmt.order_by(UserAnnotationRecord.address)))
+
+
+class BookmarkRepository:
+    """CRUD for sample address bookmarks."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def upsert(
+        self, binary_sha256: str, address: int, label: str, note: str
+    ) -> BookmarkRecord:
+        stmt = select(BookmarkRecord).where(
+            BookmarkRecord.binary_sha256 == binary_sha256,
+            BookmarkRecord.address == address,
+        )
+        record = self._session.scalar(stmt)
+        if record is None:
+            record = BookmarkRecord(
+                binary_sha256=binary_sha256,
+                address=address,
+                label=label,
+                note=note,
+            )
+            self._session.add(record)
+        else:
+            record.label = label
+            record.note = note
+        self._session.commit()
+        return record
+
+    def list(self, binary_sha256: str) -> list[BookmarkRecord]:
+        stmt = (
+            select(BookmarkRecord)
+            .where(BookmarkRecord.binary_sha256 == binary_sha256)
+            .order_by(BookmarkRecord.address)
+        )
+        return list(self._session.scalars(stmt))
+
+    def delete(self, binary_sha256: str, address: int) -> bool:
+        result = self._session.execute(
+            delete(BookmarkRecord).where(
+                BookmarkRecord.binary_sha256 == binary_sha256,
+                BookmarkRecord.address == address,
+            )
+        )
+        self._session.commit()
+        return bool(result.rowcount)

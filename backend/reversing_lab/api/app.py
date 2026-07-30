@@ -17,7 +17,7 @@ from ..config import get_settings
 from ..database.session import init_db
 from ..logging_config import configure_logging
 from .errors import register_exception_handlers
-from .routes import binaries, challenges, health, integrations
+from .routes import analysis, binaries, challenges, health, integrations, projects
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
 
@@ -57,6 +57,8 @@ def create_app() -> FastAPI:
     api_prefix = "/api"
     app.include_router(health.router, prefix=api_prefix)
     app.include_router(binaries.router, prefix=api_prefix)
+    app.include_router(analysis.router, prefix=api_prefix)
+    app.include_router(projects.router, prefix=api_prefix)
     app.include_router(challenges.router, prefix=api_prefix)
     app.include_router(integrations.router, prefix=api_prefix)
 

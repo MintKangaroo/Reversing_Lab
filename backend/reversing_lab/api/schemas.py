@@ -8,6 +8,9 @@ accidental reflection of internal types.
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 _FROM_ATTRS = ConfigDict(from_attributes=True)
@@ -172,6 +175,135 @@ class CfgSchema(BaseModel):
     blocks: list[BasicBlockSchema]
     edges: list[tuple[int, int]]
     truncated: bool
+
+
+# --- Higher-level analysis --------------------------------------------------------
+class EvidenceSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    source: str
+    message: str
+    provenance: str
+    address: int | None = None
+    file_offset: int | None = None
+    function_address: int | None = None
+    raw_value: str | None = None
+
+
+class FunctionSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    address: int
+    name: str
+    demangled_name: str | None
+    size: int
+    call_count: int
+    callers: list[int]
+    callees: list[int]
+    cyclomatic_complexity: int
+    basic_block_count: int
+    instruction_count: int
+    api_references: list[str]
+    string_references: list[str]
+    stack_frame_size: int | None
+    arguments: list[str]
+    return_type: str | None
+    is_thunk: bool
+    is_library: bool
+    suspicious_score: int
+    user_name: str | None
+    user_comment: str | None
+    confidence: float
+    provenance: str
+    evidence: list[EvidenceSchema]
+    truncated: bool
+
+
+class FunctionListSchema(BaseModel):
+    items: list[FunctionSchema]
+    total: int
+    offset: int
+    limit: int
+
+
+class CallGraphNodeSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    address: int
+    name: str
+    is_library: bool
+    is_entry: bool
+    suspicious_score: int
+    provenance: str
+
+
+class CallGraphEdgeSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    source: int
+    target: int
+    kind: str
+    call_sites: list[int]
+    recursive: bool
+
+
+class CallGraphSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    nodes: list[CallGraphNodeSchema]
+    edges: list[CallGraphEdgeSchema]
+    root_address: int | None
+    truncated: bool
+
+
+# --- Analyst overlays and projects -----------------------------------------------
+class AnnotationWriteSchema(BaseModel):
+    address: int = Field(ge=0)
+    kind: Literal["function_name", "comment"]
+    value: str = Field(min_length=1, max_length=8_192)
+
+
+class AnnotationSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: int
+    binary_sha256: str
+    address: int
+    kind: str
+    value: str
+    created_at: datetime
+    updated_at: datetime
+    provenance: Literal["user"] = "user"
+
+
+class BookmarkWriteSchema(BaseModel):
+    address: int = Field(ge=0)
+    label: str = Field(default="", max_length=160)
+    note: str = Field(default="", max_length=8_192)
+
+
+class BookmarkSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: int
+    binary_sha256: str
+    address: int
+    label: str
+    note: str
+    created_at: datetime
+
+
+class ProjectCreateSchema(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=16_384)
+
+
+class ProjectPatchSchema(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=16_384)
+
+
+class ProjectSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: str
+    name: str
+    description: str
+    created_at: datetime
+    updated_at: datetime
+    sample_sha256: list[str] = Field(default_factory=list)
 
 
 # --- Challenges -------------------------------------------------------------------
