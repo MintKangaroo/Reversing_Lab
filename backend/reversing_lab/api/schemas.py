@@ -499,6 +499,46 @@ class ToolingStatusSchema(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
 
 
+class AnalysisLimitsSchema(BaseModel):
+    max_upload_bytes: int
+    max_memory_dump_bytes: int
+    max_disassembly_instructions: int
+    max_functions: int
+    max_cfg_nodes: int
+    max_call_graph_nodes: int
+    max_strings: int
+    max_yara_matches: int
+    max_dynamic_events: int
+    max_analysis_seconds: float
+    max_decompiler_seconds: float
+    max_external_output_bytes: int
+    max_concurrent_jobs: int
+
+
+class SandboxPolicyConfigSchema(BaseModel):
+    provider: str
+    network: str
+    cpu_count: float
+    memory_mb: int
+    timeout_seconds: int
+    process_limit: int
+    read_only_base: bool = True
+    temporary_overlay: bool = True
+    host_mounts: bool = False
+    docker_socket: bool = False
+    privileged: bool = False
+    host_pid: bool = False
+    host_network: bool = False
+    destroy_after_analysis: bool = True
+
+
+class RuntimeConfigurationSchema(BaseModel):
+    limits: AnalysisLimitsSchema
+    sandbox_policy: SandboxPolicyConfigSchema
+    content_addressed_storage: bool = True
+    filenames_used_as_paths: bool = False
+
+
 class JobSchema(BaseModel):
     model_config = _FROM_ATTRS
     id: str

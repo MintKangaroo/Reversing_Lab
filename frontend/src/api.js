@@ -89,6 +89,7 @@ export const api = {
   listIntegrations: () => request('/integrations'),
   tooling: () => request('/tooling'),
   toolingDetail: (name) => request(`/tooling/${name}`),
+  toolingConfiguration: () => request('/tooling/configuration'),
   transform: (operation, input, parameters = {}) =>
     request('/tools/decode', {
       method: 'POST',

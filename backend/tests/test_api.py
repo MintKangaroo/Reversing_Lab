@@ -98,3 +98,14 @@ def test_unavailable_integration_returns_503(api_client) -> None:
     # radare2 is not installed in the test environment.
     response = api_client.post(f"/api/binaries/{sha}/integrations/radare2")
     assert response.status_code == 503
+
+
+def test_tooling_configuration_exposes_limits_without_paths(api_client) -> None:
+    response = api_client.get("/api/tooling/configuration")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["limits"]["max_upload_bytes"] > 0
+    assert body["sandbox_policy"]["network"] == "blocked"
+    assert body["sandbox_policy"]["privileged"] is False
+    assert body["content_addressed_storage"] is True
+    assert "storage_dir" not in response.text

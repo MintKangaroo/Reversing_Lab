@@ -673,6 +673,7 @@ body.is-resizing { user-select: none; cursor: col-resize; }
 .table-scroll { border-color: var(--border-soft); border-radius: 5px; }
 table.data th { background: var(--surface-1); }
 table.data th, table.data td { border-color: var(--border-soft); }
+.virtual-spacer td { padding: 0 !important; border: 0 !important; pointer-events: none; }
 .center-empty { color: var(--text-muted); }
 .error-banner { border-color: rgba(239,107,115,.45); border-radius: 5px; background: rgba(239,107,115,.08); color: #ff9da3; }
 button.btn { border-radius: 4px; background: var(--accent-dim); }
@@ -778,6 +779,24 @@ a.btn.secondary { border-color: var(--border); background: var(--surface-2); }
 .report-sections article { padding: 14px; border: 1px solid var(--border-soft); border-radius: 5px; background: var(--surface-1); }
 .report-sections h3 { margin: 0 0 6px; font-size: 11px; }
 .report-sections p { margin: 0; color: var(--text-muted); line-height: 1.5; }
+.workspace-heading { margin: 0 0 9px; font-size: 13px; }
+.tooling-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+.tooling-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-content: start;
+  padding: 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  background: var(--surface-1);
+}
+.tooling-card h3 { margin: 3px 0; }
+.tooling-card p, .tooling-card ul { grid-column: 1 / -1; color: var(--text-muted); line-height: 1.5; }
+.tooling-card ul { margin: 0; padding-left: 17px; font-size: 9px; }
+.settings-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.settings-card { padding: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-inset); }
+.settings-card h2 { margin: 0 0 10px; font-size: 13px; }
+.security-callout { margin-top: 12px; padding: 10px; border-left: 2px solid var(--yellow); background: rgba(215,168,77,.07); color: var(--text-muted); line-height: 1.5; }
 
 @media (max-width: 1220px) {
   .app-frame { min-width: 1000px; }
@@ -788,6 +807,7 @@ a.btn.secondary { border-color: var(--border); background: var(--surface-2); }
   .ctf-grid { grid-template-columns: 1fr; }
   .ctf-card.checklist, .compact-lists { grid-column: auto; grid-row: auto; }
   .report-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tooling-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

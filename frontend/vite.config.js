@@ -7,6 +7,12 @@ const apiTarget = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000';
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: './src/test/setup.js',
+    restoreMocks: true,
+  },
   server: {
     port: 5173,
     proxy: {

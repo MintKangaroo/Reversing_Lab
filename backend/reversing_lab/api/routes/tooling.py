@@ -9,7 +9,13 @@ from ...decompiler import list_decompilers
 from ...dynamic import get_sandbox_provider
 from ...integrations import list_integrations
 from ...memory import ALLOWED_PLUGINS, VolatilityAdapter
-from ..schemas import ToolingStatusSchema
+from ...config import get_settings
+from ..schemas import (
+    AnalysisLimitsSchema,
+    RuntimeConfigurationSchema,
+    SandboxPolicyConfigSchema,
+    ToolingStatusSchema,
+)
 
 router = APIRouter(prefix="/tooling", tags=["tooling"])
 
@@ -87,6 +93,37 @@ def _inventory() -> list[ToolingStatusSchema]:
 @router.get("", response_model=list[ToolingStatusSchema])
 def list_tooling() -> list[ToolingStatusSchema]:
     return _inventory()
+
+
+@router.get("/configuration", response_model=RuntimeConfigurationSchema)
+def runtime_configuration() -> RuntimeConfigurationSchema:
+    """Expose non-secret resource and isolation policy values."""
+    settings = get_settings()
+    return RuntimeConfigurationSchema(
+        limits=AnalysisLimitsSchema(
+            max_upload_bytes=settings.max_upload_bytes,
+            max_memory_dump_bytes=settings.max_memory_dump_bytes,
+            max_disassembly_instructions=settings.max_disassembly_instructions,
+            max_functions=settings.max_functions,
+            max_cfg_nodes=settings.max_cfg_nodes,
+            max_call_graph_nodes=settings.max_call_graph_nodes,
+            max_strings=settings.max_strings,
+            max_yara_matches=settings.max_yara_matches,
+            max_dynamic_events=settings.max_dynamic_events,
+            max_analysis_seconds=settings.max_analysis_seconds,
+            max_decompiler_seconds=settings.max_decompiler_seconds,
+            max_external_output_bytes=settings.max_external_output_bytes,
+            max_concurrent_jobs=settings.max_concurrent_jobs,
+        ),
+        sandbox_policy=SandboxPolicyConfigSchema(
+            provider=settings.sandbox_provider,
+            network=settings.sandbox_network_policy,
+            cpu_count=settings.sandbox_cpu_count,
+            memory_mb=settings.sandbox_memory_mb,
+            timeout_seconds=settings.sandbox_timeout_seconds,
+            process_limit=settings.sandbox_process_limit,
+        ),
+    )
 
 
 @router.get("/{tool_name}", response_model=ToolingStatusSchema)
