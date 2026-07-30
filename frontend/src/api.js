@@ -39,6 +39,27 @@ export const api = {
   packing: (sha) => request(`/binaries/${sha}/packing`),
   disassembly: (sha, count = 200) => request(`/binaries/${sha}/disassembly?count=${count}`),
   cfg: (sha) => request(`/binaries/${sha}/cfg`),
+  functions: (sha, offset = 0, limit = 1000) =>
+    request(`/binaries/${sha}/functions?offset=${offset}&limit=${limit}`),
+  functionDetail: (sha, address) => request(`/binaries/${sha}/functions/${address}`),
+  functionDisassembly: (sha, address) =>
+    request(`/binaries/${sha}/functions/${address}/disassembly`),
+  callgraph: (sha, root = null, depth = 3) =>
+    request(`/binaries/${sha}/callgraph?depth=${depth}${root == null ? '' : `&root=${root}`}`),
+  annotations: (sha) => request(`/binaries/${sha}/annotations`),
+  saveAnnotation: (sha, address, kind, value) =>
+    request(`/binaries/${sha}/annotations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, kind, value }),
+    }),
+  bookmarks: (sha) => request(`/binaries/${sha}/bookmarks`),
+  saveBookmark: (sha, address, label = '', note = '') =>
+    request(`/binaries/${sha}/bookmarks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, label, note }),
+    }),
   runIntegration: (sha, name) =>
     request(`/binaries/${sha}/integrations/${name}`, { method: 'POST' }),
 

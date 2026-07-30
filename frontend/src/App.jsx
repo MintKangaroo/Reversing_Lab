@@ -10,6 +10,8 @@ import { PackingTab } from './components/PackingTab.jsx';
 import { IntegrationsTab } from './components/Integrations.jsx';
 import { Challenges } from './components/Challenges.jsx';
 import { WorkbenchShell } from './components/WorkbenchShell.jsx';
+import { FunctionsTab } from './components/FunctionsTab.jsx';
+import { CallGraphTab } from './components/CallGraphTab.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -24,11 +26,11 @@ const NAVIGATION = [
 
 const ANALYSIS_TABS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'functions', label: 'Functions', pending: true },
+  { id: 'functions', label: 'Functions' },
   { id: 'disasm', label: 'Disassembly' },
   { id: 'decompile', label: 'Pseudo-C', pending: true },
   { id: 'cfg', label: 'CFG' },
-  { id: 'callgraph', label: 'Call Graph', pending: true },
+  { id: 'callgraph', label: 'Call Graph' },
   { id: 'strings', label: 'Strings & IOC' },
   { id: 'hex', label: 'Hex' },
   { id: 'sections', label: 'Sections' },
@@ -333,7 +335,7 @@ function PendingAnalysis({ title }) {
   );
 }
 
-function AnalysisView({ sha, info, error }) {
+function AnalysisView({ sha, info, error, functionAddress, onFunctionSelect }) {
   const [tab, setTab] = useState('overview');
 
   useEffect(() => setTab('overview'), [sha]);
@@ -364,14 +366,22 @@ function AnalysisView({ sha, info, error }) {
       </div>
       <div className="analysis-content" role="tabpanel">
         {tab === 'overview' && <Overview info={info} />}
+        {tab === 'functions' && (
+          <FunctionsTab sha={sha} selectedAddress={functionAddress} onSelect={onFunctionSelect} />
+        )}
         {tab === 'sections' && <Sections info={info} />}
         {tab === 'symbols' && <Symbols info={info} />}
         {tab === 'imports' && <Imports info={info} />}
         {tab === 'exports' && <Exports info={info} />}
         {tab === 'strings' && <StringsTab sha={sha} />}
         {tab === 'hex' && <HexTab sha={sha} />}
-        {tab === 'disasm' && <DisasmTab sha={sha} />}
+        {tab === 'disasm' && (
+          <DisasmTab sha={sha} address={functionAddress} onAddressSelect={onFunctionSelect} />
+        )}
         {tab === 'cfg' && <CfgTab sha={sha} />}
+        {tab === 'callgraph' && (
+          <CallGraphTab sha={sha} selectedAddress={functionAddress} onSelect={onFunctionSelect} />
+        )}
         {tab === 'packing' && <PackingTab sha={sha} />}
         {tab === 'integrations' && <IntegrationsTab sha={sha} />}
         {ANALYSIS_TABS.find((item) => item.id === tab)?.pending && (
@@ -401,12 +411,74 @@ function CapabilityPage({ kind }) {
   );
 }
 
-function Inspector({ info, selectedRecord, route }) {
+function Inspector({ info, selectedRecord, route, sha, functionDetail, onFunctionUpdated }) {
+  const [name, setName] = useState('');
+  const [comment, setComment] = useState('');
+  const [saveError, setSaveError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+
+  useEffect(() => {
+    setName(functionDetail?.user_name || '');
+    setComment(functionDetail?.user_comment || '');
+    setSaveError(null);
+    setBookmarked(false);
+  }, [functionDetail]);
+
+  async function saveOverlay() {
+    if (!functionDetail) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      if (name.trim()) await api.saveAnnotation(sha, functionDetail.address, 'function_name', name.trim());
+      if (comment.trim()) await api.saveAnnotation(sha, functionDetail.address, 'comment', comment.trim());
+      onFunctionUpdated();
+    } catch (failure) {
+      setSaveError(failure.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function bookmark() {
+    if (!functionDetail) return;
+    try {
+      await api.saveBookmark(sha, functionDetail.address, name || functionDetail.name, comment);
+      setBookmarked(true);
+    } catch (failure) {
+      setSaveError(failure.message);
+    }
+  }
+
   return (
     <div className="panel-content">
       <div className="panel-heading"><span>Inspector</span><button className="icon-button" aria-label="Inspector actions">•••</button></div>
       {info ? (
         <>
+          {functionDetail && (
+            <section className="inspector-section function-inspector">
+              <div className="inspector-label">SELECTED FUNCTION</div>
+              <h3 className="mono">{functionDetail.user_name || functionDetail.name}</h3>
+              <div className="inspector-kv"><span>Address</span><b className="mono">{hex(functionDetail.address)}</b></div>
+              <div className="inspector-kv"><span>Instructions</span><b>{functionDetail.instruction_count}</b></div>
+              <div className="inspector-kv"><span>Complexity</span><b>{functionDetail.cyclomatic_complexity}</b></div>
+              <div className="inspector-kv"><span>Callers / callees</span><b>{functionDetail.callers.length} / {functionDetail.callees.length}</b></div>
+              <label className="inspector-field">
+                <span>User-defined name</span>
+                <input className="text" value={name} maxLength={160} onChange={(event) => setName(event.target.value)} placeholder={functionDetail.name} />
+              </label>
+              <label className="inspector-field">
+                <span>Analyst comment</span>
+                <textarea value={comment} maxLength={8192} onChange={(event) => setComment(event.target.value)} placeholder="Add evidence or investigation notes…" />
+              </label>
+              {saveError && <div className="inline-error">{saveError}</div>}
+              <div className="inspector-actions">
+                <button className="btn" disabled={saving || (!name.trim() && !comment.trim())} onClick={saveOverlay}>{saving ? 'Saving…' : 'Save overlay'}</button>
+                <button className="btn secondary" onClick={bookmark}>{bookmarked ? 'Bookmarked ✓' : 'Bookmark'}</button>
+              </div>
+              <p className="inspector-help"><ProvenanceBadge kind="user" /> Overlays do not alter recovered analysis.</p>
+            </section>
+          )}
           <section className="inspector-section">
             <div className="inspector-label">SAMPLE</div>
             <h3>{selectedRecord?.filename}</h3>
@@ -481,6 +553,9 @@ export default function App() {
   const [error, setError] = useState(null);
   const [version, setVersion] = useState('');
   const [filter, setFilter] = useState('');
+  const [functionAddress, setFunctionAddress] = useState(null);
+  const [functionDetail, setFunctionDetail] = useState(null);
+  const [functionRevision, setFunctionRevision] = useState(0);
   const uploadRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -497,6 +572,7 @@ export default function App() {
     if (!selected) {
       setInfo(null);
       setInfoError(null);
+      setFunctionAddress(null);
       return;
     }
     let active = true;
@@ -507,6 +583,18 @@ export default function App() {
       .catch((failure) => active && setInfoError(failure.message));
     return () => { active = false; };
   }, [selected]);
+
+  useEffect(() => {
+    if (!selected || functionAddress == null) {
+      setFunctionDetail(null);
+      return;
+    }
+    let active = true;
+    api.functionDetail(selected, functionAddress)
+      .then((result) => active && setFunctionDetail(result))
+      .catch((failure) => active && setError(failure.message));
+    return () => { active = false; };
+  }, [selected, functionAddress, functionRevision]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -541,6 +629,7 @@ export default function App() {
   };
 
   const openSample = (sha) => {
+    if (sha !== selected) setFunctionAddress(null);
     setSelected(sha);
     navigate('analyze');
   };
@@ -552,7 +641,15 @@ export default function App() {
   else if (route === 'projects') workspace = <ProjectSamples binaries={binaries} onOpen={openSample} onUpload={() => uploadRef.current?.click()} />;
   else if (route === 'analyze') {
     workspace = selected
-      ? <AnalysisView sha={selected} info={info} error={infoError} />
+      ? (
+        <AnalysisView
+          sha={selected}
+          info={info}
+          error={infoError}
+          functionAddress={functionAddress}
+          onFunctionSelect={setFunctionAddress}
+        />
+      )
       : <Empty label="No sample selected" detail="Choose a sample from the explorer or upload a new authorized binary." />;
   } else if (route === 'ctf') workspace = <div className="page-scroll"><Challenges /></div>;
   else workspace = <CapabilityPage kind={route} />;
@@ -585,7 +682,16 @@ export default function App() {
           />
         )}
         workspace={workspace}
-        inspector={<Inspector info={info} selectedRecord={selectedRecord} route={route} />}
+        inspector={(
+          <Inspector
+            info={info}
+            selectedRecord={selectedRecord}
+            route={route}
+            sha={selected}
+            functionDetail={functionDetail}
+            onFunctionUpdated={() => setFunctionRevision((value) => value + 1)}
+          />
+        )}
         bottom={<BottomPanel error={error} />}
       />
     </>

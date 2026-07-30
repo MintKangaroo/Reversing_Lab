@@ -4,7 +4,7 @@ import { ErrorBanner, Loading } from './common.jsx';
 
 const FLOW_GROUPS = new Set(['jump', 'call', 'ret', 'return']);
 
-export function DisasmTab({ sha }) {
+export function DisasmTab({ sha, address = null, onAddressSelect = () => {} }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,14 +13,14 @@ export function DisasmTab({ sha }) {
     let active = true;
     setLoading(true);
     api
-      .disassembly(sha, 300)
+      [address == null ? 'disassembly' : 'functionDisassembly'](sha, address == null ? 300 : address)
       .then((d) => active && (setData(d), setError(null)))
       .catch((e) => active && setError(e.message))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [sha]);
+  }, [sha, address]);
 
   if (loading) return <Loading />;
   if (error) return <ErrorBanner error={error} />;
@@ -37,14 +37,14 @@ export function DisasmTab({ sha }) {
         {data.instructions.map((insn) => {
           const isFlow = insn.groups.some((g) => FLOW_GROUPS.has(g));
           return (
-            <div className="row" key={insn.address}>
+            <button className="row instruction-row" key={insn.address} onClick={() => onAddressSelect(insn.address)}>
               <span className="addr">{`0x${insn.address.toString(16)}`}</span>
               <span className="bytes">{insn.bytes_hex}</span>
               <span>
                 <span className={isFlow ? 'flow' : 'mnemonic'}>{insn.mnemonic}</span>{' '}
                 {insn.op_str}
               </span>
-            </div>
+            </button>
           );
         })}
       </div>
