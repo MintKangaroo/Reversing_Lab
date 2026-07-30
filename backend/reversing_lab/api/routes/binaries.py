@@ -37,6 +37,7 @@ from ..schemas import (
     UnpackResultSchema,
 )
 from ..services import parse_cached
+from ..uploads import read_upload_limited, safe_display_filename
 
 router = APIRouter(prefix="/binaries", tags=["binaries"])
 
@@ -54,16 +55,15 @@ async def upload_binary(
 ) -> BinarySummarySchema:
     """Upload a binary. Validates size and format before persisting."""
     settings = get_settings()
-    data = await file.read()
-
-    if len(data) > settings.max_upload_bytes:
-        raise UnsupportedFormatError(
-            f"File exceeds the {settings.max_upload_bytes}-byte upload limit."
-        )
+    data = await read_upload_limited(file, settings.max_upload_bytes, "Binary")
     # Reject unsupported formats up front (raises UnsupportedFormatError -> HTTP 415).
     fmt = detect_format(data)
 
-    record = repo.save(data, filename=file.filename or "upload.bin", binary_format=fmt.value)
+    record = repo.save(
+        data,
+        filename=safe_display_filename(file.filename, "upload.bin"),
+        binary_format=fmt.value,
+    )
     return BinarySummarySchema.model_validate(record)
 
 

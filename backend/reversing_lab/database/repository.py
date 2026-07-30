@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -34,6 +35,7 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class BinaryRepository:
@@ -73,6 +75,8 @@ class BinaryRepository:
 
     def get(self, sha256: str) -> BinaryRecord:
         """Return the record for ``sha256`` or raise :class:`BinaryNotFoundError`."""
+        if _SHA256.fullmatch(sha256) is None:
+            raise BinaryNotFoundError("Binary identifier must be a lowercase SHA-256.")
         record = self._session.get(BinaryRecord, sha256)
         if record is None:
             raise BinaryNotFoundError(f"No binary with id {sha256!r}.")
@@ -81,7 +85,10 @@ class BinaryRepository:
     def load_bytes(self, sha256: str) -> bytes:
         """Return the stored bytes for ``sha256`` or raise :class:`BinaryNotFoundError`."""
         record = self.get(sha256)
-        path = Path(record.storage_path)
+        path = self._path_for(sha256).resolve()
+        storage_root = self._storage_dir.resolve()
+        if path.parent != storage_root:
+            raise BinaryNotFoundError(f"Backing file for {sha256!r} is outside storage.")
         if not path.is_file():
             raise BinaryNotFoundError(f"Backing file for {sha256!r} is missing.")
         return path.read_bytes()

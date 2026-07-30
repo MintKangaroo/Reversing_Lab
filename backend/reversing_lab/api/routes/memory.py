@@ -26,6 +26,7 @@ from ..schemas import (
     MemoryRegionPageSchema,
     MemoryRegionSchema,
 )
+from ..uploads import read_upload_limited, safe_display_filename
 
 router = APIRouter(prefix="/memory-dumps", tags=["memory-analysis"])
 
@@ -60,14 +61,16 @@ async def upload_memory_dump(
     file: UploadFile = File(...),
     repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
 ) -> MemoryDumpSchema:
-    data = await file.read()
     limit = get_settings().max_memory_dump_bytes
+    data = await read_upload_limited(file, limit, "Memory dump")
     if not data:
         raise HTTPException(status_code=422, detail="Memory dump is empty.")
-    if len(data) > limit:
-        raise HTTPException(status_code=413, detail=f"Memory dump exceeds {limit} bytes.")
     dump_format, _, _ = detect_dump_format(data)
-    record = repository.save(data, file.filename or "memory.dump", dump_format)
+    record = repository.save(
+        data,
+        safe_display_filename(file.filename, "memory.dump"),
+        dump_format,
+    )
     return _dump_schema(record)
 
 
