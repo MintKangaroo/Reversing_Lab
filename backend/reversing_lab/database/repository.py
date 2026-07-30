@@ -24,6 +24,8 @@ from .models import (
     BinaryRecord,
     BookmarkRecord,
     ChallengeAttempt,
+    CtfNoteRecord,
+    CtfWorkspaceRecord,
     DynamicAnalysisRunRecord,
     MemoryDumpRecord,
     ProjectRecord,
@@ -479,3 +481,91 @@ class DynamicRunRepository:
         record.result_path = str(path)
         self._session.commit()
         return record
+
+
+class CtfWorkspaceRepository:
+    """CRUD for CTF investigation state and notes."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def create(
+        self,
+        title: str,
+        description: str,
+        category: str,
+        difficulty: str,
+        binary_sha256: str | None,
+        checklist: dict[str, bool],
+    ) -> CtfWorkspaceRecord:
+        if binary_sha256 and self._session.get(BinaryRecord, binary_sha256) is None:
+            raise BinaryNotFoundError(f"No binary with id {binary_sha256!r}.")
+        record = CtfWorkspaceRecord(
+            id=str(uuid4()),
+            title=title,
+            description=description,
+            category=category,
+            difficulty=difficulty,
+            binary_sha256=binary_sha256,
+            checklist_json=json.dumps(checklist, sort_keys=True),
+        )
+        self._session.add(record)
+        self._session.commit()
+        return record
+
+    def get(self, workspace_id: str) -> CtfWorkspaceRecord:
+        record = self._session.get(CtfWorkspaceRecord, workspace_id)
+        if record is None:
+            raise BinaryNotFoundError(f"No CTF workspace with id {workspace_id!r}.")
+        return record
+
+    def list(self, limit: int = 100) -> list[CtfWorkspaceRecord]:
+        stmt = (
+            select(CtfWorkspaceRecord)
+            .order_by(CtfWorkspaceRecord.updated_at.desc())
+            .limit(limit)
+        )
+        return list(self._session.scalars(stmt))
+
+    def update(self, workspace_id: str, values: dict[str, object]) -> CtfWorkspaceRecord:
+        record = self.get(workspace_id)
+        scalar_fields = {"title", "description", "category", "difficulty", "binary_sha256"}
+        json_fields = {
+            "hypotheses": "hypotheses_json",
+            "flag_candidates": "flag_candidates_json",
+            "checklist": "checklist_json",
+            "writeup_steps": "writeup_steps_json",
+        }
+        for key, value in values.items():
+            if value is None:
+                continue
+            if key in scalar_fields:
+                setattr(record, key, value)
+            elif key in json_fields:
+                setattr(record, json_fields[key], json.dumps(value, sort_keys=True))
+        self._session.commit()
+        return record
+
+    def add_note(
+        self, workspace_id: str, kind: str, content: str, address: int | None
+    ) -> CtfNoteRecord:
+        self.get(workspace_id)
+        note = CtfNoteRecord(
+            id=str(uuid4()),
+            workspace_id=workspace_id,
+            kind=kind,
+            content=content,
+            address=address,
+        )
+        self._session.add(note)
+        self._session.commit()
+        return note
+
+    def notes(self, workspace_id: str) -> list[CtfNoteRecord]:
+        self.get(workspace_id)
+        stmt = (
+            select(CtfNoteRecord)
+            .where(CtfNoteRecord.workspace_id == workspace_id)
+            .order_by(CtfNoteRecord.created_at)
+        )
+        return list(self._session.scalars(stmt))

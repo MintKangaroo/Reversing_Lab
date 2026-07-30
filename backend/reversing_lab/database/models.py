@@ -210,3 +210,45 @@ class DynamicAnalysisRunRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+
+
+class CtfWorkspaceRecord(Base):
+    """Persistent analyst state for one CTF/CrackMe investigation."""
+
+    __tablename__ = "ctf_workspaces"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    category: Mapped[str] = mapped_column(String(64), default="reversing", nullable=False)
+    difficulty: Mapped[str] = mapped_column(String(32), default="unknown", nullable=False)
+    binary_sha256: Mapped[str | None] = mapped_column(
+        String(64), ForeignKey("binaries.sha256"), nullable=True, index=True
+    )
+    hypotheses_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    flag_candidates_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    checklist_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    writeup_steps_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+
+class CtfNoteRecord(Base):
+    """Address-aware note/bookmark/string collected during a CTF investigation."""
+
+    __tablename__ = "ctf_notes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ctf_workspaces.id"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    address: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )

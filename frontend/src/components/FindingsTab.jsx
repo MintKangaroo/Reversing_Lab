@@ -17,9 +17,15 @@ const OPERATIONS = [
   ['utf16_decode', 'UTF-16 decode'],
   ['escaped_bytes', 'Escaped \\xNN bytes'],
   ['stack_string', 'Stack immediates'],
+  ['rot', 'ROT / Caesar'],
+  ['integer_endian', 'Integer → endian bytes'],
+  ['signed_convert', 'Signed / unsigned'],
+  ['bitwise', 'Bitwise bytes'],
+  ['hash', 'Hash'],
+  ['checksum', 'Checksum'],
 ];
 
-function DecoderPlayground() {
+export function DecoderPlayground() {
   const [operation, setOperation] = useState('base64_decode');
   const [input, setInput] = useState('');
   const [key, setKey] = useState('5a');
@@ -35,6 +41,8 @@ function DecoderPlayground() {
     if (operation.startsWith('xor_')) Object.assign(parameters, { input_format: 'hex', key, key_format: 'hex' });
     if (['add', 'sub'].includes(operation)) Object.assign(parameters, { input_format: 'hex', amount: Number(key) || 0 });
     if (['rol', 'ror'].includes(operation)) Object.assign(parameters, { input_format: 'hex', count: Number(key) || 1 });
+    if (operation === 'rot') Object.assign(parameters, { shift: Number(key) || 13 });
+    if (operation === 'bitwise') Object.assign(parameters, { input_format: 'hex', operator: 'xor', operand: Number(key) || 0 });
     try {
       setResult(await api.transform(operation, input, parameters));
     } catch (failure) {
@@ -44,7 +52,7 @@ function DecoderPlayground() {
     }
   }
 
-  const keyed = operation.startsWith('xor_') || ['add', 'sub', 'rol', 'ror'].includes(operation);
+  const keyed = operation.startsWith('xor_') || ['add', 'sub', 'rol', 'ror', 'rot', 'bitwise'].includes(operation);
   return (
     <section className="decoder-playground">
       <div className="finding-heading">

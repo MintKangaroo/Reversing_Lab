@@ -127,6 +127,27 @@ export const api = {
     return request(`/dynamic-analysis/${id}/events?${query}`);
   },
   dynamicArtifacts: (id) => request(`/dynamic-analysis/${id}/artifacts`),
+  ctfWorkspaces: () => request('/ctf-workspaces'),
+  createCtfWorkspace: (payload) =>
+    request('/ctf-workspaces', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  ctfWorkspace: (id) => request(`/ctf-workspaces/${id}`),
+  updateCtfWorkspace: (id, payload) =>
+    request(`/ctf-workspaces/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  addCtfNote: (id, payload) =>
+    request(`/ctf-workspaces/${id}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  ctfExportUrl: (id, format = 'markdown') => `${BASE}/ctf-workspaces/${id}/export?format=${format}`,
 };
 
 // Format a JS number as 0x-prefixed hex (addresses come from the API as integers).

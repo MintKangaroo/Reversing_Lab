@@ -438,6 +438,13 @@ class TransformRequestSchema(BaseModel):
         "utf16_decode",
         "escaped_bytes",
         "stack_string",
+        "rot",
+        "caesar",
+        "integer_endian",
+        "signed_convert",
+        "bitwise",
+        "hash",
+        "checksum",
     ]
     input: str = Field(max_length=1_048_576)
     parameters: dict[str, str | int | bool] = Field(default_factory=dict)
@@ -652,6 +659,58 @@ class DynamicArtifactSchema(BaseModel):
     kind: str
     content_sha256: str | None
     size: int | None
+
+
+class CtfWorkspaceCreateSchema(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=32_768)
+    category: str = Field(default="reversing", min_length=1, max_length=64)
+    difficulty: str = Field(default="unknown", min_length=1, max_length=32)
+    binary_sha256: str | None = Field(default=None, pattern="^[0-9a-f]{64}$")
+
+
+class CtfWorkspacePatchSchema(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=32_768)
+    category: str | None = Field(default=None, min_length=1, max_length=64)
+    difficulty: str | None = Field(default=None, min_length=1, max_length=32)
+    binary_sha256: str | None = Field(default=None, pattern="^[0-9a-f]{64}$")
+    hypotheses: list[str] | None = Field(default=None, max_length=500)
+    flag_candidates: list[str] | None = Field(default=None, max_length=500)
+    checklist: dict[str, bool] | None = None
+    writeup_steps: list[str] | None = Field(default=None, max_length=1_000)
+
+
+class CtfNoteCreateSchema(BaseModel):
+    kind: Literal["note", "hypothesis", "address", "string", "bookmark", "hint"]
+    content: str = Field(min_length=1, max_length=16_384)
+    address: int | None = Field(default=None, ge=0)
+
+
+class CtfNoteSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: str
+    workspace_id: str
+    kind: str
+    content: str
+    address: int | None
+    created_at: datetime
+
+
+class CtfWorkspaceSchema(BaseModel):
+    id: str
+    title: str
+    description: str
+    category: str
+    difficulty: str
+    binary_sha256: str | None
+    hypotheses: list[str]
+    flag_candidates: list[str]
+    checklist: dict[str, bool]
+    writeup_steps: list[str]
+    notes: list[CtfNoteSchema]
+    created_at: datetime
+    updated_at: datetime
 
 
 # --- Challenges -------------------------------------------------------------------

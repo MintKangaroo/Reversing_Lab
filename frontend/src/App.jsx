@@ -8,7 +8,6 @@ import { DisasmTab } from './components/DisasmTab.jsx';
 import { CfgTab } from './components/CfgTab.jsx';
 import { PackingTab } from './components/PackingTab.jsx';
 import { IntegrationsTab } from './components/Integrations.jsx';
-import { Challenges } from './components/Challenges.jsx';
 import { WorkbenchShell } from './components/WorkbenchShell.jsx';
 import { FunctionsTab } from './components/FunctionsTab.jsx';
 import { CallGraphTab } from './components/CallGraphTab.jsx';
@@ -17,6 +16,7 @@ import { FindingsTab } from './components/FindingsTab.jsx';
 import { ProgramFlowTab } from './components/ProgramFlowTab.jsx';
 import { MemoryWorkspace } from './components/MemoryWorkspace.jsx';
 import { DynamicWorkspace } from './components/DynamicWorkspace.jsx';
+import { CtfWorkspace } from './components/CtfWorkspace.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -691,7 +691,7 @@ export default function App() {
       : <Empty label="No sample selected" detail="Choose a sample from the explorer or upload a new authorized binary." />;
   } else if (route === 'memory') workspace = <MemoryWorkspace />;
   else if (route === 'dynamic') workspace = <DynamicWorkspace sample={selectedRecord} />;
-  else if (route === 'ctf') workspace = <div className="page-scroll"><Challenges /></div>;
+  else if (route === 'ctf') workspace = <CtfWorkspace sample={selectedRecord} />;
   else workspace = <CapabilityPage kind={route} />;
 
   return (

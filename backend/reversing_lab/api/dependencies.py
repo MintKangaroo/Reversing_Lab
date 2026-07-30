@@ -13,6 +13,7 @@ from ..database import (
     BinaryRepository,
     BookmarkRepository,
     ChallengeAttemptRepository,
+    CtfWorkspaceRepository,
     DynamicRunRepository,
     JobRepository,
     MemoryDumpRepository,
@@ -66,3 +67,9 @@ def get_memory_dump_repository(session: Session = Depends(get_db)) -> MemoryDump
 
 def get_dynamic_run_repository(session: Session = Depends(get_db)) -> DynamicRunRepository:
     return DynamicRunRepository(session)
+
+
+def get_ctf_workspace_repository(
+    session: Session = Depends(get_db),
+) -> CtfWorkspaceRepository:
+    return CtfWorkspaceRepository(session)
