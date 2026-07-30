@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from ...analyzer import upx_executable
 from ...decompiler import list_decompilers
 from ...integrations import list_integrations
+from ...memory import ALLOWED_PLUGINS, VolatilityAdapter
 from ..schemas import ToolingStatusSchema
 
 router = APIRouter(prefix="/tooling", tags=["tooling"])
@@ -45,6 +46,20 @@ def _inventory() -> list[ToolingStatusSchema]:
                 else "UPX is not installed or configured."
             ),
             capabilities=["explicit unpack to separate artifact"],
+        )
+    )
+    volatility = VolatilityAdapter()
+    items.append(
+        ToolingStatusSchema(
+            name="volatility3",
+            category="memory",
+            available=volatility.is_available(),
+            detail=(
+                "Volatility 3 is available; only the server allowlist can run."
+                if volatility.is_available()
+                else "Volatility 3 is unavailable; basic dump triage remains available."
+            ),
+            capabilities=[f"allowlisted plugin: {plugin}" for plugin in ALLOWED_PLUGINS],
         )
     )
     return items

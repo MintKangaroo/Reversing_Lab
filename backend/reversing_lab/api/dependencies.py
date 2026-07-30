@@ -13,6 +13,8 @@ from ..database import (
     BinaryRepository,
     BookmarkRepository,
     ChallengeAttemptRepository,
+    JobRepository,
+    MemoryDumpRepository,
     ProjectRepository,
 )
 from ..database.session import get_session_factory
@@ -51,3 +53,11 @@ def get_bookmark_repository(session: Session = Depends(get_db)) -> BookmarkRepos
 
 def get_artifact_repository(session: Session = Depends(get_db)) -> ArtifactRepository:
     return ArtifactRepository(session)
+
+
+def get_job_repository(session: Session = Depends(get_db)) -> JobRepository:
+    return JobRepository(session)
+
+
+def get_memory_dump_repository(session: Session = Depends(get_db)) -> MemoryDumpRepository:
+    return MemoryDumpRepository(session)

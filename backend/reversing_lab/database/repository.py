@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -19,9 +20,11 @@ from ..config import get_settings
 from ..errors import BinaryNotFoundError
 from .models import (
     AnalysisArtifactRecord,
+    AnalysisJobRecord,
     BinaryRecord,
     BookmarkRecord,
     ChallengeAttempt,
+    MemoryDumpRecord,
     ProjectRecord,
     ProjectSampleRecord,
     UserAnnotationRecord,
@@ -302,3 +305,127 @@ class ArtifactRepository:
             .order_by(AnalysisArtifactRecord.created_at.desc())
         )
         return list(self._session.scalars(stmt))
+
+
+class JobRepository:
+    """State transitions for DB-backed analysis jobs."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def create(self, kind: str, target_id: str) -> AnalysisJobRecord:
+        record = AnalysisJobRecord(
+            id=str(uuid4()),
+            kind=kind,
+            target_id=target_id,
+            state="queued",
+            progress=0,
+            message="Queued",
+        )
+        self._session.add(record)
+        self._session.commit()
+        return record
+
+    def get(self, job_id: str) -> AnalysisJobRecord:
+        record = self._session.get(AnalysisJobRecord, job_id)
+        if record is None:
+            raise BinaryNotFoundError(f"No analysis job with id {job_id!r}.")
+        return record
+
+    def list(self, limit: int = 100) -> list[AnalysisJobRecord]:
+        stmt = (
+            select(AnalysisJobRecord)
+            .order_by(AnalysisJobRecord.created_at.desc())
+            .limit(limit)
+        )
+        return list(self._session.scalars(stmt))
+
+    def update(
+        self,
+        job_id: str,
+        *,
+        state: str | None = None,
+        progress: int | None = None,
+        message: str | None = None,
+        error: str | None = None,
+        result_ref: str | None = None,
+    ) -> AnalysisJobRecord:
+        record = self.get(job_id)
+        if state is not None:
+            record.state = state
+            now = datetime.now(timezone.utc)
+            if state == "running" and record.started_at is None:
+                record.started_at = now
+            if state in {"completed", "failed", "cancelled"}:
+                record.finished_at = now
+        if progress is not None:
+            record.progress = max(0, min(100, progress))
+        if message is not None:
+            record.message = message[:512]
+        if error is not None:
+            record.error = error[:16_384]
+        if result_ref is not None:
+            record.result_ref = result_ref
+        self._session.commit()
+        return record
+
+    def request_cancel(self, job_id: str) -> AnalysisJobRecord:
+        record = self.get(job_id)
+        if record.state not in {"completed", "failed", "cancelled"}:
+            record.cancel_requested = True
+            if record.state == "queued":
+                record.state = "cancelled"
+                record.message = "Cancelled before execution"
+                record.finished_at = datetime.now(timezone.utc)
+            self._session.commit()
+        return record
+
+
+class MemoryDumpRepository:
+    """Store memory dumps and compressed result references."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+        self._storage_dir = get_settings().storage_dir.parent / "memory"
+        self._artifact_dir = get_settings().storage_dir.parent / "memory-artifacts"
+
+    def save(self, data: bytes, filename: str, dump_format: str) -> MemoryDumpRecord:
+        sha256 = hashlib.sha256(data).hexdigest()
+        stmt = select(MemoryDumpRecord).where(MemoryDumpRecord.sha256 == sha256)
+        existing = self._session.scalar(stmt)
+        if existing is not None:
+            return existing
+        self._storage_dir.mkdir(parents=True, exist_ok=True)
+        path = self._storage_dir / sha256
+        path.write_bytes(data)
+        record = MemoryDumpRecord(
+            id=str(uuid4()),
+            sha256=sha256,
+            filename=filename,
+            size=len(data),
+            dump_format=dump_format,
+            storage_path=str(path),
+        )
+        self._session.add(record)
+        self._session.commit()
+        return record
+
+    def get(self, dump_id: str) -> MemoryDumpRecord:
+        record = self._session.get(MemoryDumpRecord, dump_id)
+        if record is None:
+            raise BinaryNotFoundError(f"No memory dump with id {dump_id!r}.")
+        return record
+
+    def set_analysis(
+        self, dump_id: str, data: bytes, provider: str
+    ) -> MemoryDumpRecord:
+        record = self.get(dump_id)
+        digest = hashlib.sha256(data).hexdigest()
+        self._artifact_dir.mkdir(parents=True, exist_ok=True)
+        path = self._artifact_dir / f"{digest}.json.gz"
+        if not path.exists():
+            path.write_bytes(data)
+        record.analysis_path = str(path)
+        record.analysis_provider = provider
+        self._session.commit()
+        return record

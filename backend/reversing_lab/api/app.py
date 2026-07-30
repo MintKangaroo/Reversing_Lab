@@ -23,6 +23,8 @@ from .routes import (
     challenges,
     health,
     integrations,
+    jobs,
+    memory,
     projects,
     tooling,
     tools,
@@ -70,6 +72,8 @@ def create_app() -> FastAPI:
     app.include_router(projects.router, prefix=api_prefix)
     app.include_router(tools.router, prefix=api_prefix)
     app.include_router(tooling.router, prefix=api_prefix)
+    app.include_router(jobs.router, prefix=api_prefix)
+    app.include_router(memory.router, prefix=api_prefix)
     app.include_router(challenges.router, prefix=api_prefix)
     app.include_router(integrations.router, prefix=api_prefix)
 

@@ -492,6 +492,105 @@ class ToolingStatusSchema(BaseModel):
     capabilities: list[str] = Field(default_factory=list)
 
 
+class JobSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: str
+    kind: str
+    target_id: str
+    state: Literal["queued", "running", "completed", "failed", "cancelled"]
+    progress: int
+    message: str
+    error: str | None
+    result_ref: str | None
+    cancel_requested: bool
+    created_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+
+
+class MemoryDumpSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: str
+    sha256: str
+    filename: str
+    size: int
+    dump_format: str
+    analysis_provider: str | None
+    analysis_available: bool = False
+    created_at: datetime
+
+
+class MemoryAnalysisRequestSchema(BaseModel):
+    use_volatility: bool = True
+
+
+class MemoryMetadataSchema(BaseModel):
+    sha256: str
+    size: int
+    dump_format: str
+    os_guess: str | None
+    architecture: str | None
+    confidence: float
+
+
+class MemoryProcessSchema(BaseModel):
+    pid: int
+    ppid: int | None
+    name: str
+    command_line: str | None
+    thread_count: int | None
+    module_count: int | None
+    source_provider: str
+
+
+class MemoryRegionSchema(BaseModel):
+    start: int
+    end: int
+    protection: str
+    mapped_file: str | None
+    suspicious: bool
+    reason: str | None
+    source_provider: str
+
+
+class MemoryFindingSchema(BaseModel):
+    id: str
+    title: str
+    severity: Literal["info", "low", "medium", "high", "critical"]
+    confidence: float
+    summary: str
+    evidence: list[str]
+    false_positive_note: str
+
+
+class MemoryAnalysisSummarySchema(BaseModel):
+    metadata: MemoryMetadataSchema
+    provider: str
+    process_count: int
+    region_count: int
+    string_count: int
+    urls: list[str]
+    ip_addresses: list[str]
+    domains: list[str]
+    finding_count: int
+    unavailable: list[str]
+    warnings: list[str]
+
+
+class MemoryProcessPageSchema(BaseModel):
+    items: list[MemoryProcessSchema]
+    total: int
+    offset: int
+    limit: int
+
+
+class MemoryRegionPageSchema(BaseModel):
+    items: list[MemoryRegionSchema]
+    total: int
+    offset: int
+    limit: int
+
+
 # --- Challenges -------------------------------------------------------------------
 class ChallengeSchema(BaseModel):
     model_config = _FROM_ATTRS

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from .models import (
     AnalysisArtifactRecord,
+    AnalysisJobRecord,
     BinaryRecord,
     BookmarkRecord,
     ChallengeAttempt,
+    MemoryDumpRecord,
     ProjectRecord,
     ProjectSampleRecord,
     UserAnnotationRecord,
@@ -17,6 +19,8 @@ from .repository import (
     BinaryRepository,
     BookmarkRepository,
     ChallengeAttemptRepository,
+    JobRepository,
+    MemoryDumpRepository,
     ProjectRepository,
 )
 from .session import get_engine, get_session, get_session_factory, init_db
@@ -24,6 +28,7 @@ from .session import get_engine, get_session, get_session_factory, init_db
 __all__ = [
     "AnnotationRepository",
     "AnalysisArtifactRecord",
+    "AnalysisJobRecord",
     "ArtifactRepository",
     "BinaryRecord",
     "BinaryRepository",
@@ -31,6 +36,9 @@ __all__ = [
     "BookmarkRepository",
     "ChallengeAttempt",
     "ChallengeAttemptRepository",
+    "JobRepository",
+    "MemoryDumpRecord",
+    "MemoryDumpRepository",
     "ProjectRecord",
     "ProjectRepository",
     "ProjectSampleRecord",

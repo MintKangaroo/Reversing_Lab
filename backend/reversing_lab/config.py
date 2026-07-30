@@ -34,6 +34,10 @@ class Settings(BaseSettings):
         default=32 * 1024 * 1024,  # 32 MiB
         description="Reject uploads larger than this to bound resource usage.",
     )
+    max_memory_dump_bytes: int = Field(
+        default=512 * 1024 * 1024,
+        description="Reject memory dumps larger than this bound.",
+    )
 
     # --- Analysis bounds (DoS protection) ----------------------------------------
     max_disassembly_instructions: int = Field(
@@ -64,6 +68,22 @@ class Settings(BaseSettings):
         default=2_000,
         description="Hard cap on nodes exposed in a call graph.",
     )
+    max_dynamic_events: int = Field(
+        default=100_000,
+        description="Hard cap on dynamic events accepted from a sandbox provider.",
+    )
+    max_analysis_seconds: float = Field(
+        default=300.0,
+        description="Default wall-clock limit for a background analysis job.",
+    )
+    max_concurrent_jobs: int = Field(
+        default=2,
+        description="Maximum number of in-process background analysis jobs.",
+    )
+    max_yara_matches: int = Field(
+        default=1_000,
+        description="Maximum YARA matches retained for one analysis.",
+    )
     max_strings: int = Field(
         default=10_000,
         description="Hard cap on extracted strings returned per request.",
@@ -83,6 +103,9 @@ class Settings(BaseSettings):
     # --- Integrations ------------------------------------------------------------
     radare2_path: str = Field(default="r2", description="radare2 executable name/path.")
     upx_path: str = Field(default="upx", description="UPX executable name/path.")
+    volatility_path: str = Field(
+        default="vol", description="Volatility 3 executable name/path."
+    )
     integration_timeout_seconds: float = Field(
         default=30.0, description="Timeout for external-tool subprocess calls."
     )

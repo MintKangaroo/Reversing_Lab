@@ -151,3 +151,42 @@ class AnalysisArtifactRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+
+
+class AnalysisJobRecord(Base):
+    """Persistent state for a bounded background analysis."""
+
+    __tablename__ = "analysis_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    target_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    state: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    message: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_ref: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MemoryDumpRecord(Base):
+    """Content-addressed memory dump metadata."""
+
+    __tablename__ = "memory_dumps"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    dump_format: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    analysis_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    analysis_provider: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
