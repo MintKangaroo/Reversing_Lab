@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from ...analyzer import upx_executable
 from ...decompiler import list_decompilers
+from ...dynamic import get_sandbox_provider
 from ...integrations import list_integrations
 from ...memory import ALLOWED_PLUGINS, VolatilityAdapter
 from ..schemas import ToolingStatusSchema
@@ -60,6 +61,24 @@ def _inventory() -> list[ToolingStatusSchema]:
                 else "Volatility 3 is unavailable; basic dump triage remains available."
             ),
             capabilities=[f"allowlisted plugin: {plugin}" for plugin in ALLOWED_PLUGINS],
+        )
+    )
+    sandbox = get_sandbox_provider()
+    sandbox_status = sandbox.readiness(
+        sample_path_validated=False, user_acknowledged=False
+    )
+    items.append(
+        ToolingStatusSchema(
+            name="sandbox",
+            category="dynamic-analysis",
+            available=sandbox_status.provider_configured
+            and sandbox_status.isolated_worker_available,
+            detail=sandbox_status.warning,
+            capabilities=[
+                "out-of-process provider interface",
+                "blocked-by-default network policy",
+                "resource/timeout/process limits",
+            ],
         )
     )
     return items

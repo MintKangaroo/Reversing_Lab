@@ -190,3 +190,23 @@ class MemoryDumpRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+
+
+class DynamicAnalysisRunRecord(Base):
+    """Metadata/index for one sandbox-provider invocation."""
+
+    __tablename__ = "dynamic_analysis_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    job_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("analysis_jobs.id"), nullable=False, unique=True
+    )
+    binary_sha256: Mapped[str] = mapped_column(
+        String(64), ForeignKey("binaries.sha256"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )

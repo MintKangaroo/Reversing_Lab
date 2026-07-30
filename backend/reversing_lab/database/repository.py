@@ -24,6 +24,7 @@ from .models import (
     BinaryRecord,
     BookmarkRecord,
     ChallengeAttempt,
+    DynamicAnalysisRunRecord,
     MemoryDumpRecord,
     ProjectRecord,
     ProjectSampleRecord,
@@ -427,5 +428,54 @@ class MemoryDumpRepository:
             path.write_bytes(data)
         record.analysis_path = str(path)
         record.analysis_provider = provider
+        self._session.commit()
+        return record
+
+
+class DynamicRunRepository:
+    """Persist dynamic-run policy and compressed event artifact references."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+        self._artifact_dir = get_settings().storage_dir.parent / "dynamic-artifacts"
+
+    def create(
+        self,
+        run_id: str,
+        job_id: str,
+        binary_sha256: str,
+        provider: str,
+        policy: dict[str, object],
+    ) -> DynamicAnalysisRunRecord:
+        record = DynamicAnalysisRunRecord(
+            id=run_id,
+            job_id=job_id,
+            binary_sha256=binary_sha256,
+            provider=provider,
+            policy_json=json.dumps(policy, sort_keys=True),
+        )
+        self._session.add(record)
+        self._session.commit()
+        return record
+
+    def get(self, run_id: str) -> DynamicAnalysisRunRecord:
+        record = self._session.get(DynamicAnalysisRunRecord, run_id)
+        if record is None:
+            stmt = select(DynamicAnalysisRunRecord).where(
+                DynamicAnalysisRunRecord.job_id == run_id
+            )
+            record = self._session.scalar(stmt)
+        if record is None:
+            raise BinaryNotFoundError(f"No dynamic analysis run with id {run_id!r}.")
+        return record
+
+    def set_result(self, run_id: str, data: bytes) -> DynamicAnalysisRunRecord:
+        record = self.get(run_id)
+        digest = hashlib.sha256(data).hexdigest()
+        self._artifact_dir.mkdir(parents=True, exist_ok=True)
+        path = self._artifact_dir / f"{digest}.json.gz"
+        if not path.exists():
+            path.write_bytes(data)
+        record.result_path = str(path)
         self._session.commit()
         return record

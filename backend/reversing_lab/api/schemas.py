@@ -591,6 +591,69 @@ class MemoryRegionPageSchema(BaseModel):
     limit: int
 
 
+class SandboxReadinessSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    provider: str
+    provider_configured: bool
+    isolated_worker_available: bool
+    resource_limits_configured: bool
+    timeout_configured: bool
+    network_policy_configured: bool
+    writable_workspace_configured: bool
+    sample_path_validated: bool
+    user_acknowledged: bool
+    ready: bool
+    reasons: list[str]
+    warning: str
+
+
+class DynamicAnalysisRequestSchema(BaseModel):
+    binary_sha256: str = Field(pattern="^[0-9a-f]{64}$")
+    acknowledged: Literal[True]
+
+
+class DynamicRunSchema(BaseModel):
+    id: str
+    job_id: str
+    binary_sha256: str
+    provider: str
+    policy: dict[str, object]
+    result_available: bool
+    created_at: datetime
+    job: JobSchema
+
+
+class DynamicEventSchema(BaseModel):
+    timestamp: str
+    process: str | None
+    process_id: int | None
+    thread_id: int | None
+    category: str
+    operation: str
+    target: str | None
+    result: str
+    arguments_summary: str | None
+    call_stack: list[str]
+    severity: Literal["info", "low", "medium", "high", "critical"]
+    source_provider: str
+
+
+class DynamicEventPageSchema(BaseModel):
+    items: list[DynamicEventSchema]
+    total: int
+    offset: int
+    limit: int
+    unavailable_events: list[str]
+    warnings: list[str]
+
+
+class DynamicArtifactSchema(BaseModel):
+    name: str
+    kind: str
+    content_sha256: str | None
+    size: int | None
+
+
 # --- Challenges -------------------------------------------------------------------
 class ChallengeSchema(BaseModel):
     model_config = _FROM_ATTRS

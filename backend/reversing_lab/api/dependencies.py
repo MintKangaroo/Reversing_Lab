@@ -13,6 +13,7 @@ from ..database import (
     BinaryRepository,
     BookmarkRepository,
     ChallengeAttemptRepository,
+    DynamicRunRepository,
     JobRepository,
     MemoryDumpRepository,
     ProjectRepository,
@@ -61,3 +62,7 @@ def get_job_repository(session: Session = Depends(get_db)) -> JobRepository:
 
 def get_memory_dump_repository(session: Session = Depends(get_db)) -> MemoryDumpRepository:
     return MemoryDumpRepository(session)
+
+
+def get_dynamic_run_repository(session: Session = Depends(get_db)) -> DynamicRunRepository:
+    return DynamicRunRepository(session)

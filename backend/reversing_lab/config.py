@@ -106,6 +106,28 @@ class Settings(BaseSettings):
     volatility_path: str = Field(
         default="vol", description="Volatility 3 executable name/path."
     )
+
+    # --- Dynamic analysis (disabled unless every guardrail is configured) --------
+    sandbox_provider: str = Field(
+        default="disabled",
+        description="Sandbox provider name. 'disabled' never executes a sample.",
+    )
+    sandbox_worker_url: str | None = Field(
+        default=None,
+        description="Out-of-process isolated worker endpoint.",
+    )
+    sandbox_workspace_dir: Path | None = Field(
+        default=None,
+        description="Private writable workspace managed by the sandbox worker.",
+    )
+    sandbox_timeout_seconds: int = Field(default=60, ge=1, le=3_600)
+    sandbox_memory_mb: int = Field(default=512, ge=64, le=65_536)
+    sandbox_cpu_count: float = Field(default=1.0, gt=0, le=32)
+    sandbox_process_limit: int = Field(default=32, ge=1, le=4_096)
+    sandbox_network_policy: str = Field(
+        default="blocked",
+        description="Sandbox network policy; blocked is the secure default.",
+    )
     integration_timeout_seconds: float = Field(
         default=30.0, description="Timeout for external-tool subprocess calls."
     )
