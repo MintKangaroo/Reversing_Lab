@@ -13,6 +13,7 @@ import { WorkbenchShell } from './components/WorkbenchShell.jsx';
 import { FunctionsTab } from './components/FunctionsTab.jsx';
 import { CallGraphTab } from './components/CallGraphTab.jsx';
 import { PseudoCodeTab } from './components/PseudoCodeTab.jsx';
+import { FindingsTab } from './components/FindingsTab.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -39,7 +40,7 @@ const ANALYSIS_TABS = [
   { id: 'imports', label: 'Imports' },
   { id: 'exports', label: 'Exports' },
   { id: 'packing', label: 'Packing' },
-  { id: 'obfuscation', label: 'Obfuscation', pending: true },
+  { id: 'obfuscation', label: 'Obfuscation' },
   { id: 'integrations', label: 'Tooling' },
 ];
 
@@ -391,6 +392,7 @@ function AnalysisView({ sha, info, error, functionAddress, onFunctionSelect }) {
           <CallGraphTab sha={sha} selectedAddress={functionAddress} onSelect={onFunctionSelect} />
         )}
         {tab === 'packing' && <PackingTab sha={sha} />}
+        {tab === 'obfuscation' && <FindingsTab sha={sha} onAddressSelect={onFunctionSelect} />}
         {tab === 'integrations' && <IntegrationsTab sha={sha} />}
         {ANALYSIS_TABS.find((item) => item.id === tab)?.pending && (
           <PendingAnalysis title={ANALYSIS_TABS.find((item) => item.id === tab).label} />

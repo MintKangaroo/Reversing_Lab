@@ -37,6 +37,15 @@ export const api = {
     request(`/binaries/${sha}/hex?offset=${offset}&length=${length}`),
   entropy: (sha) => request(`/binaries/${sha}/entropy`),
   packing: (sha) => request(`/binaries/${sha}/packing`),
+  obfuscation: (sha) => request(`/binaries/${sha}/obfuscation`),
+  findings: (sha) => request(`/binaries/${sha}/findings`),
+  unpack: (sha) =>
+    request(`/binaries/${sha}/unpack`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acknowledged: true }),
+    }),
+  artifacts: (sha) => request(`/binaries/${sha}/artifacts`),
   disassembly: (sha, count = 200) => request(`/binaries/${sha}/disassembly?count=${count}`),
   cfg: (sha) => request(`/binaries/${sha}/cfg`),
   functions: (sha, offset = 0, limit = 1000) =>
@@ -75,6 +84,14 @@ export const api = {
   challengeArtifactUrl: (slug) => `${BASE}/challenges/${slug}/artifact`,
 
   listIntegrations: () => request('/integrations'),
+  tooling: () => request('/tooling'),
+  toolingDetail: (name) => request(`/tooling/${name}`),
+  transform: (operation, input, parameters = {}) =>
+    request('/tools/decode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operation, input, parameters }),
+    }),
 };
 
 // Format a JS number as 0x-prefixed hex (addresses come from the API as integers).
