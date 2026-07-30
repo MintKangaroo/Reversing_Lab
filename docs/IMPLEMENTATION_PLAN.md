@@ -134,7 +134,7 @@ action and produces a separate immutable artifact.
 Implementation completed on branch `feature/reversing-workbench` on 2026-07-30.
 Phases 2–10 were delivered as separate functional commits. Final local verification:
 
-- backend: 94 tests passed; one upstream Starlette TestClient deprecation warning;
+- backend: 95 tests passed; one upstream Starlette TestClient deprecation warning;
 - frontend: 7 tests passed; Vite production build passed;
 - dependency audit: zero npm vulnerabilities;
 - Docker Compose configuration parsed successfully.

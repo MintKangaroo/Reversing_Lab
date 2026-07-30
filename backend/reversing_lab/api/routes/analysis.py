@@ -13,7 +13,7 @@ from ...analyzer import analyze_obfuscation, detect_packing
 from ...database import AnnotationRepository, BinaryRepository, BookmarkRepository
 from ...config import get_settings
 from ...decompiler import DecompileOptions, decompile_function
-from ...disassembler import disassemble
+from ...disassembler import build_cfg, disassemble
 from ..dependencies import (
     get_annotation_repository,
     get_binary_repository,
@@ -25,6 +25,7 @@ from ..schemas import (
     BookmarkSchema,
     BookmarkWriteSchema,
     CallGraphSchema,
+    CfgSchema,
     DisassemblySchema,
     DecompiledFunctionSchema,
     FunctionListSchema,
@@ -183,6 +184,18 @@ def function_disassembly(
             count=max(function.instruction_count, 1),
         )
     )
+
+
+@router.get("/{sha256}/functions/{address}/cfg", response_model=CfgSchema)
+def function_cfg(
+    sha256: str,
+    address: str,
+    repo: BinaryRepository = Depends(get_binary_repository),
+) -> CfgSchema:
+    """Return a bounded CFG rooted at a recovered function address."""
+    data, info, functions = _load(repo, sha256)
+    function = get_function(functions, parse_address(address))
+    return CfgSchema.model_validate(build_cfg(info, data, address=function.address))
 
 
 @router.get(

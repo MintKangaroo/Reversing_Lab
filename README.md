@@ -11,7 +11,7 @@ Mach-O 정적 분석, 함수/CFG/call graph, 추정 pseudo-C, 패킹·난독화 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-94_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-95_passing-3fb950)
 ![Frontend tests](https://img.shields.io/badge/frontend_tests-7_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -151,7 +151,7 @@ npm run build
 npm audit
 ```
 
-현재 검증 기준은 백엔드 94개, 프런트엔드 7개 테스트 통과와 프로덕션 빌드 성공입니다.
+현재 검증 기준은 백엔드 95개, 프런트엔드 7개 테스트 통과와 프로덕션 빌드 성공입니다.
 fixture는 테스트 시 생성하는 무해한 최소 ELF/PE/Mach-O 또는 데이터 버퍼이며 실제 악성코드를
 포함하지 않습니다. CI 명령은 [.github/workflows/ci.yml](.github/workflows/ci.yml)에 있습니다.
 
