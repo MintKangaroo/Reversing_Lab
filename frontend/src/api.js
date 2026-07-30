@@ -44,6 +44,8 @@ export const api = {
   functionDetail: (sha, address) => request(`/binaries/${sha}/functions/${address}`),
   functionDisassembly: (sha, address) =>
     request(`/binaries/${sha}/functions/${address}/disassembly`),
+  decompile: (sha, address, provider = 'auto') =>
+    request(`/binaries/${sha}/functions/${address}/decompile?provider=${provider}`),
   callgraph: (sha, root = null, depth = 3) =>
     request(`/binaries/${sha}/callgraph?depth=${depth}${root == null ? '' : `&root=${root}`}`),
   annotations: (sha) => request(`/binaries/${sha}/annotations`),

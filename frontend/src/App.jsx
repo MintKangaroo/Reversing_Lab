@@ -12,6 +12,7 @@ import { Challenges } from './components/Challenges.jsx';
 import { WorkbenchShell } from './components/WorkbenchShell.jsx';
 import { FunctionsTab } from './components/FunctionsTab.jsx';
 import { CallGraphTab } from './components/CallGraphTab.jsx';
+import { PseudoCodeTab } from './components/PseudoCodeTab.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -28,7 +29,7 @@ const ANALYSIS_TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'functions', label: 'Functions' },
   { id: 'disasm', label: 'Disassembly' },
-  { id: 'decompile', label: 'Pseudo-C', pending: true },
+  { id: 'decompile', label: 'Pseudo-C' },
   { id: 'cfg', label: 'CFG' },
   { id: 'callgraph', label: 'Call Graph' },
   { id: 'strings', label: 'Strings & IOC' },
@@ -377,6 +378,13 @@ function AnalysisView({ sha, info, error, functionAddress, onFunctionSelect }) {
         {tab === 'hex' && <HexTab sha={sha} />}
         {tab === 'disasm' && (
           <DisasmTab sha={sha} address={functionAddress} onAddressSelect={onFunctionSelect} />
+        )}
+        {tab === 'decompile' && (
+          <PseudoCodeTab
+            sha={sha}
+            address={functionAddress ?? info.entry_point}
+            onAddressSelect={onFunctionSelect}
+          />
         )}
         {tab === 'cfg' && <CfgTab sha={sha} />}
         {tab === 'callgraph' && (

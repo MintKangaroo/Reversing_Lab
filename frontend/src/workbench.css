@@ -367,6 +367,55 @@ body.is-resizing { user-select: none; cursor: col-resize; }
 .call-node-name { fill: var(--text); font: 560 11px var(--mono); }
 .call-node-address { fill: var(--text-faint); font: 9px var(--mono); }
 
+.decompiler-notice {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 9px 11px;
+  border-left: 2px solid var(--yellow);
+  background: rgba(215,168,77,.06);
+}
+.decompiler-notice strong { color: var(--yellow); font-size: 11px; }
+.decompiler-notice span { color: var(--text-muted); font-size: 10px; }
+.provider-chip { padding: 2px 6px; border-radius: 3px; background: rgba(122,162,247,.1); color: var(--accent); font: 9px var(--mono); }
+.decompiler-warnings {
+  margin-bottom: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(215,168,77,.25);
+  border-radius: 4px;
+  color: #e1bc73;
+  background: rgba(215,168,77,.035);
+  font-size: 10px;
+  line-height: 1.55;
+}
+.code-editor {
+  min-width: 640px;
+  overflow: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  background: #090c11;
+  font: 12px/1.65 var(--mono);
+}
+.code-line {
+  width: 100%;
+  min-height: 21px;
+  display: grid;
+  grid-template-columns: 42px 92px minmax(400px, 1fr);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  white-space: pre;
+}
+.code-line:disabled { opacity: 1; cursor: default; }
+.code-line.mapped { cursor: pointer; }
+.code-line.mapped:hover { background: rgba(122,162,247,.07); }
+.line-number { padding-right: 9px; background: #0d1117; color: var(--text-faint); text-align: right; user-select: none; }
+.source-address { padding-left: 10px; color: var(--accent-dim); user-select: none; }
+.code-line code { color: #c7d0df; }
+.source-map-status { padding: 7px 2px; color: var(--text-faint); font-size: 9px; }
+
 .inspector-section { padding: 13px; border-bottom: 1px solid var(--border-soft); }
 .inspector-section h3 { margin: 6px 0 12px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; }
 .inspector-label { margin-bottom: 9px; color: var(--text-faint); font-size: 9px; font-weight: 700; letter-spacing: .9px; }
