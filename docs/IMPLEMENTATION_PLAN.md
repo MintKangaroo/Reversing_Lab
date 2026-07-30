@@ -128,3 +128,17 @@ The implementation deliberately does not include automatic DRM bypass, arbitrary
 Volatility plugins, arbitrary command execution, privileged containers, host mounts,
 or automatic unpacking. UPX unpacking, when available, remains an explicit user
 action and produces a separate immutable artifact.
+
+## Completion record
+
+Implementation completed on branch `feature/reversing-workbench` on 2026-07-30.
+Phases 2–10 were delivered as separate functional commits. Final local verification:
+
+- backend: 94 tests passed; one upstream Starlette TestClient deprecation warning;
+- frontend: 7 tests passed; Vite production build passed;
+- dependency audit: zero npm vulnerabilities;
+- Docker Compose configuration parsed successfully.
+
+Remaining items are intentionally recorded in [ROADMAP.md](ROADMAP.md), including
+Alembic/PostgreSQL migration work, authentication/RBAC, RetDec/r2ghidra, richer memory
+normalization, and a real VM-backed sandbox provider.
