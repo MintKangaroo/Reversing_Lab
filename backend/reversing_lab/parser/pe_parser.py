@@ -21,6 +21,11 @@ class PeParser(AbstractBinaryParser):
     binary_format = BinaryFormat.PE
 
     def _parse(self, binary: "lief.PE.Binary", data: bytes) -> BinaryInfo:
+        def enum_name(value: object) -> str:
+            """Normalize both named and integer-rendering LIEF enum bindings."""
+            name = getattr(value, "name", None)
+            return str(name) if name else str(value).rsplit(".", 1)[-1]
+
         arch, bits = normalize_arch(str(binary.header.machine))
         # PE stores an image base + RVAs; expose the absolute entry point.
         image_base = int(binary.optional_header.imagebase)
@@ -34,10 +39,10 @@ class PeParser(AbstractBinaryParser):
                 offset=int(section.offset),
                 entropy=round(max(float(section.entropy), 0.0), 4),
                 flags=tuple(
-                    str(flag).rsplit(".", 1)[-1] for flag in section.characteristics_lists
+                    enum_name(flag) for flag in section.characteristics_lists
                 ),
                 contains_code=any(
-                    "MEM_EXECUTE" in str(flag) or "CNT_CODE" in str(flag)
+                    "MEM_EXECUTE" in enum_name(flag) or "CNT_CODE" in enum_name(flag)
                     for flag in section.characteristics_lists
                 ),
             )
@@ -81,10 +86,13 @@ class PeParser(AbstractBinaryParser):
             if symbol.name
         )
 
-        dll_chars = {str(c).rsplit(".", 1)[-1] for c in binary.optional_header.dll_characteristics_lists}
+        dll_chars = {
+            enum_name(characteristic)
+            for characteristic in binary.optional_header.dll_characteristics_lists
+        }
 
         extra = {
-            "subsystem": str(binary.optional_header.subsystem).rsplit(".", 1)[-1],
+            "subsystem": enum_name(binary.optional_header.subsystem),
             "image_base": hex(image_base),
             "dll_characteristics": ", ".join(sorted(dll_chars)),
             "is_dll": str(binary.header.has_characteristic(lief.PE.Header.CHARACTERISTICS.DLL)),
