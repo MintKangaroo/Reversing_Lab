@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..database import (
     AnnotationRepository,
+    ArtifactRepository,
     BinaryRepository,
     BookmarkRepository,
     ChallengeAttemptRepository,
@@ -46,3 +47,7 @@ def get_annotation_repository(session: Session = Depends(get_db)) -> AnnotationR
 
 def get_bookmark_repository(session: Session = Depends(get_db)) -> BookmarkRepository:
     return BookmarkRepository(session)
+
+
+def get_artifact_repository(session: Session = Depends(get_db)) -> ArtifactRepository:
+    return ArtifactRepository(session)

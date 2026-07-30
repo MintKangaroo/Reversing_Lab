@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ...analysis import build_call_graph, get_function
+from ...analysis.models import Evidence, Finding, ProvenanceKind
+from ...analyzer import analyze_obfuscation, detect_packing
 from ...database import AnnotationRepository, BinaryRepository, BookmarkRepository
 from ...config import get_settings
 from ...decompiler import DecompileOptions, decompile_function
@@ -27,6 +29,7 @@ from ..schemas import (
     DecompiledFunctionSchema,
     FunctionListSchema,
     FunctionSchema,
+    FindingSchema,
 )
 from ..services import functions_cached, parse_cached
 
@@ -100,6 +103,58 @@ def call_graph(
     return CallGraphSchema.model_validate(
         build_call_graph(functions, root_address=root_address, depth=depth)
     )
+
+
+@router.get("/{sha256}/obfuscation", response_model=list[FindingSchema])
+def obfuscation_findings(
+    sha256: str,
+    repo: BinaryRepository = Depends(get_binary_repository),
+) -> list[FindingSchema]:
+    data, info, _ = _load(repo, sha256)
+    return [
+        FindingSchema.model_validate(item)
+        for item in analyze_obfuscation(info, data)
+    ]
+
+
+@router.get("/{sha256}/findings", response_model=list[FindingSchema])
+def all_findings(
+    sha256: str,
+    repo: BinaryRepository = Depends(get_binary_repository),
+) -> list[FindingSchema]:
+    data, info, _ = _load(repo, sha256)
+    findings = list(analyze_obfuscation(info, data))
+    packing = detect_packing(info, data)
+    if packing.likely_packed:
+        findings.insert(
+            0,
+            Finding(
+                id=f"packing-{sha256[:16]}",
+                category="packing",
+                title="Binary is likely packed",
+                severity="high",
+                confidence=packing.confidence,
+                summary=(
+                    f"Packing heuristics scored {packing.score}; "
+                    f"detected marker: {packing.detected_packer or 'custom/unknown'}."
+                ),
+                evidence=packing.evidence
+                or (
+                    Evidence(
+                        source="packing-heuristics",
+                        message="Multiple packing heuristics crossed the configured threshold.",
+                        provenance=ProvenanceKind.HEURISTIC,
+                    ),
+                ),
+                recommendations=packing.recommended_next_steps,
+                false_positive_notes=(
+                    "Compressed resources and unusual compiler/linker layouts may trigger these heuristics.",
+                ),
+                technique="executable_packing",
+                mitre_id="T1027.002",
+            ),
+        )
+    return [FindingSchema.model_validate(item) for item in findings]
 
 
 @router.get("/{sha256}/functions/{address}/disassembly", response_model=DisassemblySchema)

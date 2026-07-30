@@ -82,6 +82,7 @@ class Settings(BaseSettings):
 
     # --- Integrations ------------------------------------------------------------
     radare2_path: str = Field(default="r2", description="radare2 executable name/path.")
+    upx_path: str = Field(default="upx", description="UPX executable name/path.")
     integration_timeout_seconds: float = Field(
         default=30.0, description="Timeout for external-tool subprocess calls."
     )

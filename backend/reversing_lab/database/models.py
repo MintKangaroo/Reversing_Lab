@@ -127,3 +127,27 @@ class BookmarkRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+
+
+class AnalysisArtifactRecord(Base):
+    """Metadata index for an immutable, content-addressed derived artifact."""
+
+    __tablename__ = "analysis_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "binary_sha256", "kind", "content_sha256", name="uq_artifact_content"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    binary_sha256: Mapped[str] = mapped_column(
+        String(64), ForeignKey("binaries.sha256"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )

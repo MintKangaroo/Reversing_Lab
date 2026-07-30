@@ -7,6 +7,7 @@ narrow, testable interfaces rather than on SQLAlchemy sessions directly.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from pathlib import Path
 from uuid import uuid4
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..config import get_settings
 from ..errors import BinaryNotFoundError
 from .models import (
+    AnalysisArtifactRecord,
     BinaryRecord,
     BookmarkRecord,
     ChallengeAttempt,
@@ -251,3 +253,52 @@ class BookmarkRepository:
         )
         self._session.commit()
         return bool(result.rowcount)
+
+
+class ArtifactRepository:
+    """Store derived bytes by their own hash and index metadata in SQL."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+        self._storage_dir = get_settings().storage_dir.parent / "artifacts"
+
+    def save(
+        self,
+        binary_sha256: str,
+        kind: str,
+        data: bytes,
+        metadata: dict[str, object] | None = None,
+    ) -> AnalysisArtifactRecord:
+        content_sha256 = hashlib.sha256(data).hexdigest()
+        stmt = select(AnalysisArtifactRecord).where(
+            AnalysisArtifactRecord.binary_sha256 == binary_sha256,
+            AnalysisArtifactRecord.kind == kind,
+            AnalysisArtifactRecord.content_sha256 == content_sha256,
+        )
+        existing = self._session.scalar(stmt)
+        if existing is not None:
+            return existing
+        self._storage_dir.mkdir(parents=True, exist_ok=True)
+        path = self._storage_dir / content_sha256
+        if not path.exists():
+            path.write_bytes(data)
+        record = AnalysisArtifactRecord(
+            id=str(uuid4()),
+            binary_sha256=binary_sha256,
+            kind=kind,
+            content_sha256=content_sha256,
+            size=len(data),
+            storage_path=str(path),
+            metadata_json=json.dumps(metadata or {}, sort_keys=True),
+        )
+        self._session.add(record)
+        self._session.commit()
+        return record
+
+    def list(self, binary_sha256: str) -> list[AnalysisArtifactRecord]:
+        stmt = (
+            select(AnalysisArtifactRecord)
+            .where(AnalysisArtifactRecord.binary_sha256 == binary_sha256)
+            .order_by(AnalysisArtifactRecord.created_at.desc())
+        )
+        return list(self._session.scalars(stmt))

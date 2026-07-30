@@ -17,7 +17,16 @@ from ..config import get_settings
 from ..database.session import init_db
 from ..logging_config import configure_logging
 from .errors import register_exception_handlers
-from .routes import analysis, binaries, challenges, health, integrations, projects
+from .routes import (
+    analysis,
+    binaries,
+    challenges,
+    health,
+    integrations,
+    projects,
+    tooling,
+    tools,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +68,8 @@ def create_app() -> FastAPI:
     app.include_router(binaries.router, prefix=api_prefix)
     app.include_router(analysis.router, prefix=api_prefix)
     app.include_router(projects.router, prefix=api_prefix)
+    app.include_router(tools.router, prefix=api_prefix)
+    app.include_router(tooling.router, prefix=api_prefix)
     app.include_router(challenges.router, prefix=api_prefix)
     app.include_router(integrations.router, prefix=api_prefix)
 

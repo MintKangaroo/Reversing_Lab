@@ -131,6 +131,24 @@ class PackingIndicatorSchema(BaseModel):
     weight: int
 
 
+class PackingEvidenceSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    source: str
+    message: str
+    provenance: str
+    address: int | None = None
+    file_offset: int | None = None
+    function_address: int | None = None
+    raw_value: str | None = None
+
+
+class DetectedPackerSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    name: str
+    confidence: float
+    evidence: list[PackingEvidenceSchema]
+
+
 class PackingReportSchema(BaseModel):
     model_config = _FROM_ATTRS
     likely_packed: bool
@@ -138,6 +156,10 @@ class PackingReportSchema(BaseModel):
     detected_packer: str | None
     overall_entropy: float
     indicators: list[PackingIndicatorSchema]
+    confidence: float
+    detected_packers: list[DetectedPackerSchema]
+    evidence: list[PackingEvidenceSchema]
+    recommended_next_steps: list[str]
 
 
 # --- Disassembler -----------------------------------------------------------------
@@ -187,6 +209,24 @@ class EvidenceSchema(BaseModel):
     file_offset: int | None = None
     function_address: int | None = None
     raw_value: str | None = None
+
+
+class FindingSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: str
+    category: str
+    title: str
+    severity: Literal["info", "low", "medium", "high", "critical"]
+    confidence: float
+    summary: str
+    evidence: list[EvidenceSchema]
+    recommendations: list[str]
+    false_positive_notes: list[str]
+    technique: str | None = None
+    address_start: int | None = None
+    address_end: int | None = None
+    related_function: int | None = None
+    mitre_id: str | None = None
 
 
 class FunctionSchema(BaseModel):
@@ -343,6 +383,77 @@ class ProjectSchema(BaseModel):
     created_at: datetime
     updated_at: datetime
     sample_sha256: list[str] = Field(default_factory=list)
+
+
+class TransformRequestSchema(BaseModel):
+    operation: Literal[
+        "hex_decode",
+        "hex_encode",
+        "base64_decode",
+        "base64_encode",
+        "url_decode",
+        "url_encode",
+        "xor_single",
+        "xor_repeating",
+        "add",
+        "sub",
+        "rol",
+        "ror",
+        "utf16_decode",
+        "escaped_bytes",
+        "stack_string",
+    ]
+    input: str = Field(max_length=1_048_576)
+    parameters: dict[str, str | int | bool] = Field(default_factory=dict)
+
+
+class TransformResultSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    operation: str
+    text: str
+    bytes_hex: str
+    warnings: list[str]
+    python_snippet: str
+
+
+class UnpackRequestSchema(BaseModel):
+    acknowledged: Literal[True]
+
+
+class SectionChangeSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    name: str
+    original_size: int | None
+    unpacked_size: int | None
+
+
+class UnpackResultSchema(BaseModel):
+    provider: str
+    artifact_id: str
+    original_sha256: str
+    unpacked_sha256: str
+    original_size: int
+    unpacked_size: int
+    section_changes: list[SectionChangeSchema]
+    warnings: list[str]
+
+
+class ArtifactSchema(BaseModel):
+    id: str
+    binary_sha256: str
+    kind: str
+    content_sha256: str
+    size: int
+    metadata: dict[str, object]
+    created_at: datetime
+
+
+class ToolingStatusSchema(BaseModel):
+    name: str
+    category: str
+    available: bool
+    detail: str
+    capabilities: list[str] = Field(default_factory=list)
 
 
 # --- Challenges -------------------------------------------------------------------

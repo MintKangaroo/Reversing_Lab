@@ -30,6 +30,26 @@ class Evidence:
 
 
 @dataclass(frozen=True, slots=True)
+class Finding:
+    """A normalized, evidence-backed automated finding."""
+
+    id: str
+    category: str
+    title: str
+    severity: str
+    confidence: float
+    summary: str
+    evidence: tuple[Evidence, ...]
+    recommendations: tuple[str, ...]
+    false_positive_notes: tuple[str, ...]
+    technique: str | None = None
+    address_start: int | None = None
+    address_end: int | None = None
+    related_function: int | None = None
+    mitre_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class FunctionAnalysis:
     """A bounded static approximation of one function."""
 
