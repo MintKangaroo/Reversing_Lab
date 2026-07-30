@@ -14,6 +14,7 @@ import { FunctionsTab } from './components/FunctionsTab.jsx';
 import { CallGraphTab } from './components/CallGraphTab.jsx';
 import { PseudoCodeTab } from './components/PseudoCodeTab.jsx';
 import { FindingsTab } from './components/FindingsTab.jsx';
+import { ProgramFlowTab } from './components/ProgramFlowTab.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -33,6 +34,7 @@ const ANALYSIS_TABS = [
   { id: 'decompile', label: 'Pseudo-C' },
   { id: 'cfg', label: 'CFG' },
   { id: 'callgraph', label: 'Call Graph' },
+  { id: 'flow', label: 'Program Flow' },
   { id: 'strings', label: 'Strings & IOC' },
   { id: 'hex', label: 'Hex' },
   { id: 'sections', label: 'Sections' },
@@ -391,6 +393,7 @@ function AnalysisView({ sha, info, error, functionAddress, onFunctionSelect }) {
         {tab === 'callgraph' && (
           <CallGraphTab sha={sha} selectedAddress={functionAddress} onSelect={onFunctionSelect} />
         )}
+        {tab === 'flow' && <ProgramFlowTab sha={sha} onAddressSelect={onFunctionSelect} />}
         {tab === 'packing' && <PackingTab sha={sha} />}
         {tab === 'obfuscation' && <FindingsTab sha={sha} onAddressSelect={onFunctionSelect} />}
         {tab === 'integrations' && <IntegrationsTab sha={sha} />}

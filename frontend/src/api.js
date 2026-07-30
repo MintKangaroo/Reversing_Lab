@@ -57,6 +57,7 @@ export const api = {
     request(`/binaries/${sha}/functions/${address}/decompile?provider=${provider}`),
   callgraph: (sha, root = null, depth = 3) =>
     request(`/binaries/${sha}/callgraph?depth=${depth}${root == null ? '' : `&root=${root}`}`),
+  flowSummary: (sha) => request(`/binaries/${sha}/flow-summary`),
   annotations: (sha) => request(`/binaries/${sha}/annotations`),
   saveAnnotation: (sha, address, kind, value) =>
     request(`/binaries/${sha}/annotations`, {

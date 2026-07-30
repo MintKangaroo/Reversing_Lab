@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, hex } from '../api.js';
 import { Empty, ErrorBanner, Loading, ProvenanceBadge } from './common.jsx';
 
@@ -44,6 +44,7 @@ export function CallGraphTab({ sha, selectedAddress, onSelect }) {
   const [graph, setGraph] = useState(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState(null);
+  const svgRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -67,6 +68,55 @@ export function CallGraphTab({ sha, selectedAddress, onSelect }) {
 
   const { positions, width, height } = graphLayout(rendered.nodes, rendered.edges);
   const needle = query.toLowerCase();
+
+  function download(content, type, extension) {
+    const url = URL.createObjectURL(new Blob([content], { type }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `callgraph-${sha.slice(0, 12)}.${extension}`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function serializedSvg() {
+    const clone = svgRef.current.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+    style.textContent = `
+      .call-edge{fill:none;stroke:#667084;stroke-width:1.2}
+      .call-node rect{fill:#171c25;stroke:#2b3341}.call-node-name{fill:#e5e9f0;font:11px monospace}
+      .call-node-address{fill:#929bab;font:9px monospace}
+    `;
+    clone.prepend(style);
+    return new XMLSerializer().serializeToString(clone);
+  }
+
+  function exportPng() {
+    const source = serializedSvg();
+    const image = new Image();
+    image.onload = () => {
+      const scale = Math.min(2, 4096 / Math.max(width, height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(width * scale);
+      canvas.height = Math.ceil(height * scale);
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#090c11';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.scale(scale, scale);
+      context.drawImage(image, 0, 0);
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `callgraph-${sha.slice(0, 12)}.png`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    };
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
+  }
+
   return (
     <div className="callgraph-view">
       <div className="toolbar">
@@ -74,9 +124,13 @@ export function CallGraphTab({ sha, selectedAddress, onSelect }) {
         <span className="muted">{graph.nodes.length} nodes · {graph.edges.length} static edges</span>
         <ProvenanceBadge kind="heuristic" />
         {(graph.truncated || graph.nodes.length > MAX_RENDERED_NODES) && <span className="badge medium">render bounded</span>}
+        <span className="toolbar-spacer" />
+        <button className="btn secondary graph-export" onClick={() => download(JSON.stringify(graph, null, 2), 'application/json', 'json')}>JSON</button>
+        <button className="btn secondary graph-export" onClick={() => download(serializedSvg(), 'image/svg+xml', 'svg')}>SVG</button>
+        <button className="btn secondary graph-export" onClick={exportPng}>PNG</button>
       </div>
       <div className="graph-canvas" tabIndex={0} role="region" aria-label="Static call graph">
-        <svg width={width} height={height}>
+        <svg ref={svgRef} width={width} height={height}>
           <defs>
             <marker id="call-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
               <path d="M0,0 L7,3 L0,6 Z" fill="var(--text-faint)" />
