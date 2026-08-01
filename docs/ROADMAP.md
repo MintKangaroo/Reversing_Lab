@@ -11,12 +11,14 @@
 - disabled/mock dynamic provider and readiness UI;
 - persistent CTF workspace and report export;
 - Alembic baseline with conservative legacy SQLite bootstrap;
+- optional digest-backed bearer authentication, coarse roles, project ownership migration;
 - backend/frontend/security regression tests, CI, development containers.
 
 ## Near term
 
 1. PostgreSQL migration CI and subsequent revision upgrade/downgrade fixtures.
-2. authentication, project RBAC, audit-event persistence, retention/deletion API.
+2. OIDC/short-lived credentials, ownership for every resource, audit-event persistence,
+   retention/deletion API, and server-side rate limiting.
 3. RetDec and r2ghidra adapters with the same process hardening contract.
 4. richer PE/ELF mitigation metadata: canary, CFG, signing, debug/build ID, TLS, overlay.
 5. paginated artifact download and explicit report association for memory/dynamic runs.

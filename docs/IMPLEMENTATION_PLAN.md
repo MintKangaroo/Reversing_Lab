@@ -67,9 +67,8 @@ Baseline:
 2. Binary route identifiers are unconstrained strings. Storage currently remains safe
    because the database resolves the path, but strict 64-character lowercase SHA-256
    validation will make the contract and logs safer.
-3. `Base.metadata.create_all()` has no migration history. The development database can
-   be extended additively for now; an Alembic baseline is required before production
-   rollout or destructive schema evolution.
+3. **Resolved in follow-up:** Alembic owns the baseline and project-ownership revision;
+   the bootstrap refuses unknown unversioned schema drift.
 4. External adapter subprocesses use fixed argument vectors and no shell, but timeout,
    output limits, sanitized environment, resource limits, audit records, and
    cancellation are not implemented uniformly.
@@ -81,9 +80,9 @@ Baseline:
 7. Challenge submissions are stored verbatim. CTF notes are user-authored evidence,
    but candidate secrets should be clearly scoped and exportable/deletable; decoder
    inputs should not be persisted by default.
-8. CORS is development-oriented and there is no authentication/authorization model.
-   Deployment documentation must keep the service local/private until an auth layer
-   is added.
+8. **Partially resolved in follow-up:** optional API-key roles and project ownership are
+   implemented. Complete resource ownership, OIDC, rate limiting, and audit persistence
+   remain required for mutually untrusted tenants.
 9. There is no frontend lint, type-check, or test script. New UI code will avoid a
    broad TypeScript migration and introduce only the minimum test/tooling needed.
 10. Python 3.10 is the current supported baseline despite the target preference for
@@ -132,13 +131,18 @@ action and produces a separate immutable artifact.
 ## Completion record
 
 Implementation completed on branch `feature/reversing-workbench` on 2026-07-30.
-Phases 2–10 were delivered as separate functional commits. Final local verification:
+Phases 2–10 were delivered as separate functional commits. The initial local
+verification before the follow-up hardening work was:
 
 - backend: 98 tests passed; one upstream Starlette TestClient deprecation warning;
 - frontend: 7 tests passed; Vite production build passed;
 - dependency audit: zero npm vulnerabilities;
 - Docker Compose configuration parsed successfully.
 
-Remaining items are intentionally recorded in [ROADMAP.md](ROADMAP.md), including
-Alembic/PostgreSQL migration work, authentication/RBAC, RetDec/r2ghidra, richer memory
+Subsequent hardening added Alembic revisions, optional API-key roles, and project
+ownership. Remaining items are recorded in [ROADMAP.md](ROADMAP.md), including
+PostgreSQL CI, full resource ownership/OIDC, RetDec/r2ghidra, richer memory
 normalization, and a real VM-backed sandbox provider.
+
+Follow-up verification on 2026-08-02: 104 backend tests and 10 frontend tests passed;
+the Vite production build and high-severity npm audit also passed.

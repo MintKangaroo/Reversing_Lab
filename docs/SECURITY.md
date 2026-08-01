@@ -2,10 +2,17 @@
 
 ## Safe deployment posture
 
-Reversing Lab assumes every upload is hostile. Run it on a dedicated analysis network,
-behind authentication added by the deployer, with least-privilege filesystem access.
-The current application does not include authentication/RBAC and must not be exposed
-directly to the public internet.
+Reversing Lab assumes every upload is hostile. Run it on a dedicated analysis network
+with least-privilege filesystem access. Optional digest-backed bearer authentication
+is available but disabled by default for local compatibility. Any shared deployment
+must enable it behind TLS and proxy rate limiting; auth-disabled mode must not be
+exposed directly to the internet.
+
+The built-in roles are deliberately coarse. Viewers are HTTP read-only, analysts may
+mutate state, and admins may also audit all projects. Non-admin project records are
+owner-scoped, but sample/dump/run/job/CTF data remains shared between authenticated
+operators. This is not a complete multi-tenant boundary. See
+[AUTHENTICATION.md](AUTHENTICATION.md).
 
 ## Upload and storage controls
 
@@ -52,7 +59,10 @@ contents or decoder input.
 
 ## Production hardening checklist
 
-- add OIDC/session authentication and project-level authorization;
+- enable API-key auth or add OIDC, terminate TLS, rate-limit failures, and redact
+  authorization headers from logs;
+- extend ownership enforcement to samples, annotations, dumps, runs, jobs, artifacts,
+  reports, and CTF workspaces before serving mutually untrusted tenants;
 - terminate TLS at a trusted reverse proxy;
 - use the Alembic workflow, add PostgreSQL migration CI, and encrypt backups;
 - isolate parser/external-tool workers with OS resource controls;

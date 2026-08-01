@@ -11,8 +11,8 @@ Mach-O 정적 분석, 함수/CFG/call graph, 추정 pseudo-C, 패킹·난독화 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-98_passing-3fb950)
-![Frontend tests](https://img.shields.io/badge/frontend_tests-7_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-104_passing-3fb950)
+![Frontend tests](https://img.shields.io/badge/frontend_tests-10_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ## 주요 화면
@@ -41,7 +41,8 @@ jobs/findings 패널로 구성되며 키보드로 패널 크기와 주요 화면
 - disabled-by-default 동적 분석 provider, 8개 guardrail readiness gate, mock orchestration provider
 - CTF investigation workspace, 체크리스트, 노트/주소/가설/flag 후보, write-up export
 - JSON/Markdown/HTML 정적 분석 보고서
-- SQLite 개발 지원과 SQLAlchemy repository 경계
+- Alembic migration, SQLite 개발 지원과 SQLAlchemy repository 경계
+- 선택적 digest-backed API key 인증, `viewer`/`analyst`/`admin` 역할과 프로젝트 소유권 격리
 
 기능의 정확한 구현/제한 표는 [구현 계획](docs/IMPLEMENTATION_PLAN.md)과
 [로드맵](docs/ROADMAP.md)을 참고하십시오.
@@ -83,8 +84,8 @@ pip install -r requirements.txt -r requirements-dev.txt
 uvicorn reversing_lab.api.app:app --reload --port 8000
 ```
 
-새 운영 DB는 API 시작 전에 migration을 적용하십시오. 기존 `create_all` 기반 DB는 정확한
-schema 일치 검증 후에만 자동 baseline stamp됩니다.
+새 운영 DB는 API 시작 전에 migration을 적용하십시오. 기존 `create_all` 기반 DB는 알려진
+revision의 table/column shape와 일치할 때만 자동 baseline stamp됩니다.
 
 ```bash
 cd backend
@@ -102,6 +103,26 @@ npm run dev
 - UI: http://127.0.0.1:5173
 - OpenAPI: http://127.0.0.1:8000/docs
 - API health: http://127.0.0.1:8000/api/health
+
+로컬 호환성을 위해 인증 기본값은 `disabled`입니다. 공유 환경에서는 SHA-256 digest만
+설정에 보관하는 API key 모드를 활성화하십시오. 원문 키는 UI 탭 메모리에만 유지되어 새로
+고침하면 다시 입력해야 합니다.
+
+```bash
+cd backend
+python - <<'PY'
+import getpass, hashlib
+print(hashlib.sha256(getpass.getpass("New API key: ").encode()).hexdigest())
+PY
+
+export RLAB_AUTH_MODE=api_key
+export RLAB_AUTH_API_KEY_HASHES='{"<출력된 digest>":"analyst-one:analyst"}'
+```
+
+운영에서는 TLS reverse proxy와 요청 rate limit를 함께 사용하십시오. 현재 non-admin
+프로젝트는 owner별로 격리되지만 바이너리·메모리·동적 실행·CTF 카탈로그는 인증 사용자 간
+공유됩니다. 따라서 이 기능을 완전한 다중 tenant 경계로 간주하면 안 됩니다. 역할/배포 세부
+사항은 [AUTHENTICATION](docs/AUTHENTICATION.md)을 참고하십시오.
 
 Docker 기반 개발 환경은 다음과 같이 시작할 수 있습니다.
 
@@ -159,7 +180,7 @@ npm run build
 npm audit
 ```
 
-현재 검증 기준은 백엔드 98개, 프런트엔드 7개 테스트 통과와 프로덕션 빌드 성공입니다.
+현재 검증 기준은 백엔드 104개, 프런트엔드 10개 테스트 통과와 프로덕션 빌드 성공입니다.
 fixture는 테스트 시 생성하는 무해한 최소 ELF/PE/Mach-O 또는 데이터 버퍼이며 실제 악성코드를
 포함하지 않습니다. CI 명령은 [.github/workflows/ci.yml](.github/workflows/ci.yml)에 있습니다.
 
@@ -183,6 +204,7 @@ RLAB_MAX_CONCURRENT_JOBS=2
 ## 문서
 
 - [API](docs/API.md)
+- [Authentication](docs/AUTHENTICATION.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Security](docs/SECURITY.md)
 - [Threat model](docs/THREAT_MODEL.md)
@@ -201,7 +223,8 @@ RLAB_MAX_CONCURRENT_JOBS=2
 - static report schema는 아직 동적 run과 memory dump를 binary sample에 자동 연결하지 않습니다.
 - SQLite 개발 환경은 계속 지원되며 운영 배포는 Alembic baseline을 사용합니다. PostgreSQL
   전환 및 실제 upgrade 이력 검증은 추가 작업이 필요합니다.
-- 인증/RBAC/다중 사용자 격리는 아직 없으므로 인터넷에 직접 노출하면 안 됩니다.
+- API key 인증은 coarse role과 프로젝트 owner만 격리합니다. OIDC, key lifecycle API,
+  전체 리소스 tenant 격리, 서버 측 rate limit, append-only audit log는 아직 없습니다.
 
 ## 라이선스
 

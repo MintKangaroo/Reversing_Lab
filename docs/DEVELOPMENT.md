@@ -19,6 +19,10 @@ npm run dev
 The Vite server proxies `/api` to `http://127.0.0.1:8000`. Override with
 `VITE_API_TARGET`.
 
+Authentication is disabled by default. To exercise role enforcement, configure
+digest mappings as described in [AUTHENTICATION.md](AUTHENTICATION.md). Tests use
+temporary keys/databases and never persist raw keys.
+
 ## Required checks
 
 ```bash
@@ -55,8 +59,9 @@ pytest tests/test_migrations.py
 
 `python -m reversing_lab.database.migrate` upgrades fresh/versioned databases. An older
 unversioned `create_all` database is stamped only after its table and column sets match
-the current ORM metadata exactly; partial or drifted schemas are rejected. Back up real
-data before stamping or upgrading. `init_db()` retains idempotent `create_all` behavior
+a known revision; both the initial and pre-project-owner schemas are recognized.
+Partial or drifted schemas are rejected. Back up real data before stamping or upgrading.
+`init_db()` retains idempotent `create_all` behavior
 for local backward compatibility, but production startup should run the migration
 bootstrap first. PostgreSQL must be added to CI before claiming production support.
 

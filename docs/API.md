@@ -4,6 +4,18 @@ FastAPI serves OpenAPI at `/docs` and `/openapi.json`. All application endpoints
 the `/api` prefix. Addresses are JSON integers; clients may send strict decimal or
 `0x...` strings where an address is a path/query parameter.
 
+## Authentication
+
+Authentication defaults to disabled for local backward compatibility. With
+`RLAB_AUTH_MODE=api_key`, `GET /api/health` remains public and every other endpoint
+requires `Authorization: Bearer <raw-key>`. `GET /api/auth/me` returns the current
+principal and role. Viewers can use only GET/HEAD/OPTIONS; analyst and admin keys can
+mutate state. Project reads/writes are owner-scoped for non-admin users.
+
+The sample and other resource catalogs are currently shared between authenticated
+operators, so this is not complete tenant isolation. Configuration and deployment are
+documented in [AUTHENTICATION.md](AUTHENTICATION.md).
+
 ## Samples and static analysis
 
 | Method | Endpoint |
@@ -62,6 +74,8 @@ allowlisted by Pydantic.
 - `413`: upload exceeds its configured bound;
 - `415`: unsupported executable format;
 - `422`: malformed address/request or analysis failure mapped to client-safe detail;
+- `401`: missing or invalid bearer key when authentication is enabled;
+- `403`: authenticated viewer attempted a mutation;
 - `409`: result requested before job completion;
 - `503`: explicitly requested optional tool/provider is unavailable.
 
@@ -69,7 +83,9 @@ Example:
 
 ```bash
 BASE=http://127.0.0.1:8000/api
-SHA=$(curl -s -F file=@./authorized.elf "$BASE/binaries" | jq -r .sha256)
-curl -s "$BASE/binaries/$SHA/functions?limit=50" | jq
-curl -OJ "$BASE/binaries/$SHA/report?format=markdown"
+read -rsp "API key: " API_KEY && echo
+SHA=$(curl -s -H "Authorization: Bearer $API_KEY" -F file=@./authorized.elf "$BASE/binaries" | jq -r .sha256)
+curl -s -H "Authorization: Bearer $API_KEY" "$BASE/binaries/$SHA/functions?limit=50" | jq
+curl -OJ -H "Authorization: Bearer $API_KEY" "$BASE/binaries/$SHA/report?format=markdown"
+unset API_KEY
 ```
