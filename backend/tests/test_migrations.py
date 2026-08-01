@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect, select
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session
 
 from reversing_lab.database.models import Base, BinaryRecord
@@ -79,3 +80,38 @@ def test_bootstrap_refuses_partial_unversioned_schema(tmp_path: Path) -> None:
     with pytest.raises(RuntimeError, match="Refusing to stamp"):
         bootstrap_database(f"sqlite:///{database}")
     assert "alembic_version" not in inspect(engine).get_table_names()
+
+
+def test_pre_ownership_legacy_schema_is_stamped_then_upgraded(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "pre-owner.db"
+    config = _config(database)
+    command.upgrade(config, "0001_initial_schema")
+    engine = create_engine(f"sqlite:///{database}")
+    now = datetime.now(timezone.utc)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO projects "
+                "(id, name, description, created_at, updated_at) "
+                "VALUES (:id, :name, :description, :created_at, :updated_at)"
+            ),
+            {
+                "id": "legacy-project",
+                "name": "Legacy investigation",
+                "description": "preserve me",
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        connection.execute(text("DROP TABLE alembic_version"))
+
+    assert bootstrap_database(f"sqlite:///{database}") == "stamped-and-upgraded"
+    columns = {item["name"] for item in inspect(engine).get_columns("projects")}
+    assert "owner_id" in columns
+    with engine.connect() as connection:
+        name = connection.scalar(
+            text("SELECT name FROM projects WHERE id = 'legacy-project'")
+        )
+    assert name == "Legacy investigation"

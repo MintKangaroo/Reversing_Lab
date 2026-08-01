@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -100,6 +101,19 @@ class Settings(BaseSettings):
     )
     log_level: str = Field(default="INFO", description="Root log level.")
 
+    # --- Authentication (disabled for backward-compatible local development) -----
+    auth_mode: Literal["disabled", "api_key"] = Field(
+        default="disabled",
+        description="Enable digest-backed bearer API keys when set to 'api_key'.",
+    )
+    auth_api_key_hashes: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "SHA-256 digest to 'principal:role' mapping; raw bearer keys are never "
+            "stored in configuration. Roles: viewer, analyst, admin."
+        ),
+    )
+
     # --- Integrations ------------------------------------------------------------
     radare2_path: str = Field(default="r2", description="radare2 executable name/path.")
     upx_path: str = Field(default="upx", description="UPX executable name/path.")
@@ -139,6 +153,39 @@ class Settings(BaseSettings):
         default=2 * 1024 * 1024,
         description="Maximum structured output accepted from an external tool.",
     )
+
+    @field_validator("auth_api_key_hashes")
+    @classmethod
+    def validate_api_key_hashes(cls, value: dict[str, str]) -> dict[str, str]:
+        allowed_roles = {"viewer", "analyst", "admin"}
+        for digest, descriptor in value.items():
+            invalid_digest = len(digest) != 64 or any(
+                character not in "0123456789abcdef" for character in digest
+            )
+            if invalid_digest:
+                raise ValueError("Authentication key digests must be lowercase SHA-256.")
+            principal, separator, role = descriptor.rpartition(":")
+            valid_principal = (
+                1 <= len(principal) <= 128
+                and all(
+                    character.isascii()
+                    and (character.isalnum() or character in "._@-")
+                    for character in principal
+                )
+            )
+            if not separator or not valid_principal or role not in allowed_roles:
+                raise ValueError(
+                    "Authentication descriptors must use 'principal:viewer|analyst|admin'."
+                )
+        return value
+
+    @model_validator(mode="after")
+    def require_keys_when_auth_enabled(self) -> "Settings":
+        if self.auth_mode == "api_key" and not self.auth_api_key_hashes:
+            raise ValueError(
+                "API-key authentication requires at least one digest mapping."
+            )
+        return self
 
 
 @lru_cache(maxsize=1)

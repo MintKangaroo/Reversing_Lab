@@ -107,5 +107,12 @@ def test_tooling_configuration_exposes_limits_without_paths(api_client) -> None:
     assert body["limits"]["max_upload_bytes"] > 0
     assert body["sandbox_policy"]["network"] == "blocked"
     assert body["sandbox_policy"]["privileged"] is False
+    assert body["authentication"] == {
+        "mode": "disabled",
+        "required": False,
+        "project_ownership_enforced": False,
+        "binary_catalog_scope": "shared",
+    }
     assert body["content_addressed_storage"] is True
     assert "storage_dir" not in response.text
+    assert "api_key_hashes" not in response.text

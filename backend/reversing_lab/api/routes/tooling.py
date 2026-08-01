@@ -12,6 +12,7 @@ from ...memory import ALLOWED_PLUGINS, VolatilityAdapter
 from ...config import get_settings
 from ..schemas import (
     AnalysisLimitsSchema,
+    AuthenticationConfigSchema,
     RuntimeConfigurationSchema,
     SandboxPolicyConfigSchema,
     ToolingStatusSchema,
@@ -122,6 +123,11 @@ def runtime_configuration() -> RuntimeConfigurationSchema:
             memory_mb=settings.sandbox_memory_mb,
             timeout_seconds=settings.sandbox_timeout_seconds,
             process_limit=settings.sandbox_process_limit,
+        ),
+        authentication=AuthenticationConfigSchema(
+            mode=settings.auth_mode,
+            required=settings.auth_mode == "api_key",
+            project_ownership_enforced=settings.auth_mode == "api_key",
         ),
     )
 

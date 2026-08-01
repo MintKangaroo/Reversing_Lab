@@ -16,6 +16,12 @@ from pydantic import BaseModel, ConfigDict, Field
 _FROM_ATTRS = ConfigDict(from_attributes=True)
 
 
+class PrincipalSchema(BaseModel):
+    id: str
+    role: Literal["viewer", "analyst", "admin"]
+    authentication_enabled: bool
+
+
 # --- Parser -----------------------------------------------------------------------
 class SectionSchema(BaseModel):
     model_config = _FROM_ATTRS
@@ -416,6 +422,7 @@ class ProjectSchema(BaseModel):
     id: str
     name: str
     description: str
+    owner_id: str | None
     created_at: datetime
     updated_at: datetime
     sample_sha256: list[str] = Field(default_factory=list)
@@ -532,9 +539,17 @@ class SandboxPolicyConfigSchema(BaseModel):
     destroy_after_analysis: bool = True
 
 
+class AuthenticationConfigSchema(BaseModel):
+    mode: Literal["disabled", "api_key"]
+    required: bool
+    project_ownership_enforced: bool
+    binary_catalog_scope: Literal["shared"] = "shared"
+
+
 class RuntimeConfigurationSchema(BaseModel):
     limits: AnalysisLimitsSchema
     sandbox_policy: SandboxPolicyConfigSchema
+    authentication: AuthenticationConfigSchema
     content_addressed_storage: bool = True
     filenames_used_as_paths: bool = False
 

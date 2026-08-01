@@ -128,26 +128,41 @@ class ProjectRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def create(self, name: str, description: str = "") -> ProjectRecord:
-        project = ProjectRecord(id=str(uuid4()), name=name, description=description)
+    def create(
+        self, name: str, description: str = "", owner_id: str | None = None
+    ) -> ProjectRecord:
+        project = ProjectRecord(
+            id=str(uuid4()), name=name, description=description, owner_id=owner_id
+        )
         self._session.add(project)
         self._session.commit()
         return project
 
-    def list(self, limit: int = 100) -> list[ProjectRecord]:
-        stmt = select(ProjectRecord).order_by(ProjectRecord.updated_at.desc()).limit(limit)
+    def list(
+        self, limit: int = 100, owner_id: str | None = None
+    ) -> list[ProjectRecord]:
+        stmt = select(ProjectRecord)
+        if owner_id is not None:
+            stmt = stmt.where(ProjectRecord.owner_id == owner_id)
+        stmt = stmt.order_by(ProjectRecord.updated_at.desc()).limit(limit)
         return list(self._session.scalars(stmt))
 
-    def get(self, project_id: str) -> ProjectRecord:
+    def get(self, project_id: str, owner_id: str | None = None) -> ProjectRecord:
         project = self._session.get(ProjectRecord, project_id)
-        if project is None:
+        if project is None or (
+            owner_id is not None and project.owner_id != owner_id
+        ):
             raise BinaryNotFoundError(f"No project with id {project_id!r}.")
         return project
 
     def update(
-        self, project_id: str, name: str | None, description: str | None
+        self,
+        project_id: str,
+        name: str | None,
+        description: str | None,
+        owner_id: str | None = None,
     ) -> ProjectRecord:
-        project = self.get(project_id)
+        project = self.get(project_id, owner_id)
         if name is not None:
             project.name = name
         if description is not None:
@@ -155,8 +170,13 @@ class ProjectRepository:
         self._session.commit()
         return project
 
-    def add_sample(self, project_id: str, binary_sha256: str) -> ProjectSampleRecord:
-        self.get(project_id)
+    def add_sample(
+        self,
+        project_id: str,
+        binary_sha256: str,
+        owner_id: str | None = None,
+    ) -> ProjectSampleRecord:
+        self.get(project_id, owner_id)
         if self._session.get(BinaryRecord, binary_sha256) is None:
             raise BinaryNotFoundError(f"No binary with id {binary_sha256!r}.")
         key = {"project_id": project_id, "binary_sha256": binary_sha256}
@@ -168,8 +188,10 @@ class ProjectRepository:
         self._session.commit()
         return membership
 
-    def sample_hashes(self, project_id: str) -> list[str]:
-        self.get(project_id)
+    def sample_hashes(
+        self, project_id: str, owner_id: str | None = None
+    ) -> list[str]:
+        self.get(project_id, owner_id)
         stmt = (
             select(ProjectSampleRecord.binary_sha256)
             .where(ProjectSampleRecord.project_id == project_id)
