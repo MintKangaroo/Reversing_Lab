@@ -1,12 +1,11 @@
 # Reversing Lab
 
-Reversing Lab은 권한을 보유한 바이너리, CTF/CrackMe, 안전한 교육용 샘플을 분석하기 위한
-웹 기반 리버스 엔지니어링 워크벤치입니다. React 분석 UI와 FastAPI 분석 코어가 ELF, PE,
-Mach-O 정적 분석, 함수/CFG/call graph, 추정 pseudo-C, 패킹·난독화 finding, 메모리 트리아지,
-격리형 동적 분석 제어면, CTF 노트, 보고서 export를 하나의 증거 기반 모델로 연결합니다.
+권한을 보유한 ELF, PE, Mach-O 바이너리와 CTF/CrackMe를 분석하는 웹 기반 리버스
+엔지니어링 워크벤치입니다. 정적 분석, 추정 C 유사 코드, CFG/Call Graph, 패킹·난독화
+finding, 메모리 트리아지, 격리형 동적 분석 제어, CTF 노트와 보고서를 한 화면에서 다룹니다.
 
-> 이 프로젝트는 승인받지 않은 침해, 자격 증명 탈취, 악성코드 배포, DRM 우회 자동화,
-> 실제 서비스 공격을 위한 도구가 아닙니다. 분석 권한이 있는 샘플에만 사용하십시오.
+> 승인받지 않은 침해, 자격 증명 탈취, 악성코드 배포, DRM 우회 자동화 또는 실제 서비스
+> 공격을 위한 도구가 아닙니다. 소유하거나 분석 권한을 받은 샘플에만 사용하십시오.
 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
@@ -15,98 +14,105 @@ Mach-O 정적 분석, 함수/CFG/call graph, 추정 pseudo-C, 패킹·난독화 
 ![Frontend tests](https://img.shields.io/badge/frontend_tests-10_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-## 주요 화면
+![Reversing Lab dashboard](docs/screenshots/01-dashboard.png)
 
-현재 워크벤치는 차콜/슬레이트 테마의 project explorer, 탭형 분석 공간, inspector,
-jobs/findings 패널로 구성되며 키보드로 패널 크기와 주요 화면을 조작할 수 있습니다.
-저장소에 포함된 아래 이미지는 분석 기능의 예시입니다.
+## 빠른 시작
 
-| Binary overview | CFG |
-|---|---|
-| ![Overview](docs/screenshots/02-overview.png) | ![CFG](docs/screenshots/09-cfg.png) |
-
-| Packing evidence | Practice challenge |
-|---|---|
-| ![Packing](docs/screenshots/14-packing-detected.png) | ![Challenge](docs/screenshots/12-challenges.png) |
-
-## 구현된 기능
-
-- content-addressed 업로드, ELF/PE/Mach-O 정규화 파싱, 섹션/심볼/import/export/문자열/hex
-- 제한된 함수 복원, xref, 디스어셈블리, typed CFG, dominator/loop 표시, static call graph
-- Ghidra headless adapter와 외부 도구가 없어도 동작하는 보수적 pseudo-C fallback
-- 근거·confidence·provenance·false-positive caveat가 포함된 패킹/난독화 finding
-- 데이터만 변환하는 Hex/Base64/XOR/ADD/SUB/ROL/ROR/ROT/endian/hash/checksum 도구
-- DB-backed job 상태/진행/취소/SSE, content-addressed 압축 결과 artifact
-- 기본 메모리 트리아지와 allowlist 기반 Volatility 3 adapter
-- disabled-by-default 동적 분석 provider, 8개 guardrail readiness gate, mock orchestration provider
-- CTF investigation workspace, 체크리스트, 노트/주소/가설/flag 후보, write-up export
-- JSON/Markdown/HTML 정적 분석 보고서
-- Alembic migration, SQLite 개발 지원과 SQLAlchemy repository 경계
-- 선택적 digest-backed API key 인증, `viewer`/`analyst`/`admin` 역할과 프로젝트 소유권 격리
-
-기능의 정확한 구현/제한 표는 [구현 계획](docs/IMPLEMENTATION_PLAN.md)과
-[로드맵](docs/ROADMAP.md)을 참고하십시오.
-
-## 아키텍처
-
-```text
-React Analysis Workbench
-          │ HTTP / SSE
-          ▼
-FastAPI API ── SQLAlchemy indexes/metadata
-    │
-    ├── parser / static analysis / functions / CFG / call graph
-    ├── decompiler adapters ── Ghidra | conservative pseudo-C
-    ├── packing / obfuscation / safe data transforms
-    ├── DB-backed jobs ── memory adapter / dynamic provider control plane
-    └── content-addressed samples and compressed artifacts
-```
-
-FastAPI 프로세스는 업로드 바이너리를 직접 실행하지 않습니다. 동적 분석 API는 모든
-guardrail이 충족된 별도 provider만 호출하며 기본값은 `disabled`입니다. 현재 `mock`
-provider도 제어 흐름만 검증하고 샘플을 실행하지 않습니다.
-
-자세한 설계는 [ARCHITECTURE](docs/ARCHITECTURE.md), [SECURITY](docs/SECURITY.md),
-[THREAT MODEL](docs/THREAT_MODEL.md)을 읽으십시오.
-
-## 설치 및 실행
-
-권장 환경은 Python 3.11 이상과 Node 20.20 이상입니다. 백엔드는 Python 3.10도 지원합니다.
+가장 간단한 방법은 Docker Compose입니다.
 
 ```bash
 git clone https://github.com/MintKangaroo/Reversing_Lab.git
 cd Reversing_Lab
+docker compose up --build
+```
 
-cd backend
+- UI: http://127.0.0.1:5173
+- API 문서: http://127.0.0.1:8000/docs
+- 상태 확인: http://127.0.0.1:8000/api/health
+
+이 Compose 구성은 개발 환경이며 악성코드 실행 sandbox가 아닙니다.
+
+## 사용 방법
+
+1. 왼쪽 Explorer에서 분석 권한이 있는 ELF/PE/Mach-O 파일을 업로드합니다.
+2. `Functions`에서 함수를 고르고 `Disassembly`, `Pseudo-C`, `CFG`를 함께 확인합니다.
+3. `Call Graph`, `Program Flow`, `Packing`, `Obfuscation`에서 근거와 confidence를 검토합니다.
+4. 오른쪽 Inspector에서 함수 이름, 코멘트, bookmark를 저장합니다.
+5. `Reports`에서 결과를 JSON, Markdown 또는 HTML로 내보냅니다.
+
+주소는 UI에서 `0x...`로 표시됩니다. Pseudo-C는 원본 소스가 아니라 보수적인 추정 결과이며,
+각 finding에는 verified/heuristic/inferred provenance와 false-positive 주의 사항이 표시됩니다.
+
+## 주요 화면
+
+| 함수 분석 | 추정 C 유사 코드 |
+|---|---|
+| ![Functions](docs/screenshots/03-functions.png) | ![Pseudo-C](docs/screenshots/05-pseudo-c.png) |
+
+| Control Flow Graph | Call Graph |
+|---|---|
+| ![CFG](docs/screenshots/06-cfg.png) | ![Call Graph](docs/screenshots/07-call-graph.png) |
+
+| Program Flow | 패킹·난독화 분석 |
+|---|---|
+| ![Program Flow](docs/screenshots/08-program-flow.png) | ![Obfuscation](docs/screenshots/10-obfuscation.png) |
+
+| 격리 실행 안전 게이트 | CTF Workspace |
+|---|---|
+| ![Dynamic guardrails](docs/screenshots/12-dynamic-safety.png) | ![CTF Workspace](docs/screenshots/13-ctf-workspace.png) |
+
+| 보고서 | 도구 및 설정 |
+|---|---|
+| ![Reports](docs/screenshots/14-reports.png) | ![Settings](docs/screenshots/15-settings.png) |
+
+## 주요 기능
+
+| 영역 | 기능 |
+|---|---|
+| 정적 분석 | metadata, mitigation, section, symbol, import/export, strings/IOC, hex, entropy |
+| 함수 분석 | bounded function recovery, xref, disassembly, CFG, call graph, program flow |
+| 디컴파일 | Ghidra headless adapter, 외부 도구가 없어도 동작하는 pseudo-C fallback |
+| 탐지 | 근거·confidence가 포함된 패킹 및 난독화 finding, 명시적 UPX adapter |
+| 메모리 | dump upload, 기본 data-only triage, allowlist 기반 Volatility 3 adapter |
+| 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
+| 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
+| 저장·보고 | content-addressed storage, DB-backed jobs, JSON/Markdown/HTML export |
+| 운영 | Alembic migration, optional API-key roles, project ownership, resource limits |
+
+## 로컬 개발 실행
+
+권장 환경은 Python 3.11 이상과 Node 20.20 이상입니다. 백엔드는 Python 3.10도 CI에서
+검증합니다.
+
+터미널 1 — 백엔드:
+
+```bash
+git clone https://github.com/MintKangaroo/Reversing_Lab.git
+cd Reversing_Lab
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+cd backend
+python -m reversing_lab.database.migrate
 uvicorn reversing_lab.api.app:app --reload --port 8000
 ```
 
-새 운영 DB는 API 시작 전에 migration을 적용하십시오. 기존 `create_all` 기반 DB는 알려진
-revision의 table/column shape와 일치할 때만 자동 baseline stamp됩니다.
+터미널 2 — 프런트엔드:
 
 ```bash
-cd backend
-python -m reversing_lab.database.migrate
-```
-
-다른 터미널에서:
-
-```bash
-cd frontend
+cd Reversing_Lab/frontend
 npm ci
 npm run dev
 ```
 
-- UI: http://127.0.0.1:5173
-- OpenAPI: http://127.0.0.1:8000/docs
-- API health: http://127.0.0.1:8000/api/health
+모든 설정은 `RLAB_` 환경변수로 덮어쓸 수 있습니다. 기본값은
+[`backend/.env.example`](backend/.env.example)에 있습니다.
 
-로컬 호환성을 위해 인증 기본값은 `disabled`입니다. 공유 환경에서는 SHA-256 digest만
-설정에 보관하는 API key 모드를 활성화하십시오. 원문 키는 UI 탭 메모리에만 유지되어 새로
-고침하면 다시 입력해야 합니다.
+## 인증 설정 (선택)
+
+로컬 호환성을 위해 인증은 기본적으로 꺼져 있습니다. 공유 환경에서는 API key 모드를
+활성화하고 TLS reverse proxy와 rate limit를 함께 사용하십시오. 서버에는 원문 키가 아니라
+SHA-256 digest만 설정하며, UI는 원문 키를 현재 탭 메모리에만 보관합니다.
 
 ```bash
 cd backend
@@ -119,112 +125,78 @@ export RLAB_AUTH_MODE=api_key
 export RLAB_AUTH_API_KEY_HASHES='{"<출력된 digest>":"analyst-one:analyst"}'
 ```
 
-운영에서는 TLS reverse proxy와 요청 rate limit를 함께 사용하십시오. 현재 non-admin
-프로젝트는 owner별로 격리되지만 바이너리·메모리·동적 실행·CTF 카탈로그는 인증 사용자 간
-공유됩니다. 따라서 이 기능을 완전한 다중 tenant 경계로 간주하면 안 됩니다. 역할/배포 세부
-사항은 [AUTHENTICATION](docs/AUTHENTICATION.md)을 참고하십시오.
+역할은 읽기 전용 `viewer`, 변경 가능한 `analyst`, 전체 프로젝트를 감사할 수 있는 `admin`입니다.
+현재 프로젝트는 owner별로 격리되지만 binary/dump/run/job/CTF catalog는 인증 사용자 사이에
+공유되므로 완전한 multi-tenant 경계로 사용하면 안 됩니다.
+[인증 문서](docs/AUTHENTICATION.md)에 운영 및 rotation 절차가 있습니다.
 
-Docker 기반 개발 환경은 다음과 같이 시작할 수 있습니다.
-
-```bash
-docker compose up --build
-```
-
-이 compose 구성은 개발 편의용이며 악성코드 실행 sandbox가 아닙니다.
-
-## 기본 사용 흐름
-
-1. 분석 권한이 있는 안전한 fixture 또는 바이너리를 업로드합니다.
-2. 함수 목록에서 함수를 선택하고 disassembly/pseudo-C/CFG를 함께 검토합니다.
-3. call graph, program flow, packing/obfuscation finding의 주소와 근거를 교차 확인합니다.
-4. 이름, 코멘트, bookmark를 analyst overlay로 저장합니다.
-5. CTF workspace에 가설과 풀이 단계를 기록하거나 보고서를 export합니다.
-6. 메모리 분석은 별도 dump만 업로드합니다.
-7. 동적 분석은 VM-backed provider를 별도로 구현·구성하기 전까지 비활성 상태로 유지합니다.
+![Authentication gate](docs/screenshots/16-authentication.png)
 
 ## 외부 도구
 
-모두 선택 사항입니다. 설치되지 않은 도구 하나 때문에 API 전체가 실패하지 않습니다.
+모두 선택 사항이며, 설치되지 않은 도구는 해당 기능만 비활성화됩니다.
 
-| 도구 | 설정 | 현재 사용 |
+| 도구 | 설정 | 사용처 |
 |---|---|---|
 | Ghidra | `GHIDRA_HOME=/opt/ghidra` | 함수 단위 headless decompile |
-| UPX | `RLAB_UPX_PATH=upx` | 사용자가 명시한 UPX `-d`, 별도 artifact |
-| Volatility 3 | `RLAB_VOLATILITY_PATH=vol` | 서버 allowlist plugin |
-| radare2 | `RLAB_RADARE2_PATH=r2` | 선택적 전체 바이너리 분석 |
-| Binary Ninja | 라이선스된 Python 모듈 | 가용성/선택적 adapter |
+| UPX | `RLAB_UPX_PATH=upx` | 사용자 확인 후 별도 unpacked artifact 생성 |
+| Volatility 3 | `RLAB_VOLATILITY_PATH=vol` | 서버 allowlist memory plugin |
+| radare2 | `RLAB_RADARE2_PATH=r2` | 선택적 whole-binary 분석 |
+| Binary Ninja | 라이선스된 Python module | 가용성 및 선택적 adapter |
 
-Ghidra/UPX/Volatility subprocess는 고정 argument vector, `shell=False`, timeout, 제한된 출력,
-임시 작업 공간을 사용합니다. 자세한 설정은 [DECOMPILATION](docs/DECOMPILATION.md)과
-[MEMORY ANALYSIS](docs/MEMORY_ANALYSIS.md)을 참고하십시오.
+외부 명령은 고정 argument vector, `shell=False`, timeout, 출력 상한, 제한된 환경과 임시
+작업 공간을 사용합니다.
 
-## 동적 분석 보안 경고
+## 동적 분석 안전 경계
 
-`RLAB_SANDBOX_PROVIDER=disabled`가 기본값입니다. provider, 격리 worker, CPU/메모리/프로세스
-상한, timeout, network policy, private workspace, 검증된 sample path, 사용자 확인 중 하나라도
-빠지면 실행 버튼과 API 실행이 모두 차단됩니다.
+동적 분석 기본값은 `RLAB_SANDBOX_PROVIDER=disabled`입니다. provider, 격리 worker,
+resource limit, timeout, network policy, private workspace, 검증된 sample path, 사용자 확인이
+모두 충족되어야 실행 버튼과 API가 활성화됩니다.
 
-Docker 컨테이너만으로 강한 악성코드 격리를 보장하지 않습니다. 실전 악성 샘플에는 별도
-네트워크 구역과 폐기 가능한 VM을 사용하는 provider가 필요합니다.
-[DYNAMIC ANALYSIS](docs/DYNAMIC_ANALYSIS.md)에 provider 계약과 체크리스트가 있습니다.
+FastAPI 프로세스는 업로드 바이너리를 직접 실행하지 않습니다. Docker만으로 강한 악성코드
+격리를 보장하지 않으며, 실전 샘플은 별도 네트워크의 폐기 가능한 VM provider가 필요합니다.
+자세한 내용은 [동적 분석 문서](docs/DYNAMIC_ANALYSIS.md)를 참고하십시오.
+
+## 아키텍처
+
+```text
+React Analysis Workbench
+          │ HTTP / SSE
+          ▼
+FastAPI API ── optional auth / SQLAlchemy metadata
+    ├── parser / static analysis / functions / graphs
+    ├── decompiler / packing / obfuscation adapters
+    ├── DB-backed jobs ── memory / dynamic provider control plane
+    └── content-addressed samples and compressed artifacts
+```
+
+SQLite는 개발 환경에서 지원하며 Alembic이 schema를 관리합니다. 대용량 결과는 압축 artifact로
+저장하고 DB에는 index와 metadata만 보관합니다.
 
 ## 테스트
 
 ```bash
-cd backend
-../.venv/bin/pytest
-
-cd ../frontend
-npm test
-npm run build
-npm audit
+cd backend && ../.venv/bin/pytest
+cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 검증 기준은 백엔드 104개, 프런트엔드 10개 테스트 통과와 프로덕션 빌드 성공입니다.
-fixture는 테스트 시 생성하는 무해한 최소 ELF/PE/Mach-O 또는 데이터 버퍼이며 실제 악성코드를
-포함하지 않습니다. CI 명령은 [.github/workflows/ci.yml](.github/workflows/ci.yml)에 있습니다.
+현재 기준은 backend 104개와 frontend 10개 테스트 통과, production build 성공, npm 취약점
+0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지 않습니다. CI는 Python 3.10/3.11,
+frontend build/audit, Alembic drift와 whitespace를 검사합니다.
 
-## 설정
+## 현재 제한
 
-모든 런타임 설정은 `RLAB_` 환경변수로 덮어쓸 수 있습니다.
-[`backend/.env.example`](backend/.env.example)을 복사해 사용하십시오. 주요 상한:
+- 실제 VM sandbox provider와 RetDec/r2ghidra adapter는 아직 구현되지 않았습니다.
+- Volatility 정규화는 process list 중심이며 module/handle/registry/network 모델은 확장 예정입니다.
+- 함수 경계, 타입, indirect control flow, pseudo-C는 휴리스틱이므로 수동 검증이 필요합니다.
+- PostgreSQL CI, 전체 resource ownership, OIDC, audit log와 retention API가 추가로 필요합니다.
 
-```bash
-RLAB_MAX_UPLOAD_BYTES=33554432
-RLAB_MAX_MEMORY_DUMP_BYTES=536870912
-RLAB_MAX_FUNCTIONS=5000
-RLAB_MAX_DYNAMIC_EVENTS=100000
-RLAB_MAX_ANALYSIS_SECONDS=300
-RLAB_MAX_CONCURRENT_JOBS=2
-```
+## 문서와 로드맵
 
-설정 화면과 `GET /api/tooling/configuration`은 비밀값이나 로컬 storage path를 노출하지 않고
-유효한 상한과 sandbox 정책만 보여줍니다.
-
-## 문서
-
-- [API](docs/API.md)
-- [Authentication](docs/AUTHENTICATION.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Security](docs/SECURITY.md)
-- [Threat model](docs/THREAT_MODEL.md)
-- [Dynamic analysis](docs/DYNAMIC_ANALYSIS.md)
-- [Memory analysis](docs/MEMORY_ANALYSIS.md)
-- [Decompilation](docs/DECOMPILATION.md)
-- [Development](docs/DEVELOPMENT.md)
-- [Roadmap](docs/ROADMAP.md)
-
-## 알려진 제한
-
-- RetDec/r2ghidra adapter와 실제 VM sandbox provider는 아직 구현되지 않았습니다.
-- Volatility 결과 정규화는 현재 process list 중심이며 module/handle/registry/network plugin
-  모델은 확장 예정입니다.
-- 함수 경계, 타입, indirect call/jump, pseudo-C는 휴리스틱이므로 완전하지 않습니다.
-- static report schema는 아직 동적 run과 memory dump를 binary sample에 자동 연결하지 않습니다.
-- SQLite 개발 환경은 계속 지원되며 운영 배포는 Alembic baseline을 사용합니다. PostgreSQL
-  전환 및 실제 upgrade 이력 검증은 추가 작업이 필요합니다.
-- API key 인증은 coarse role과 프로젝트 owner만 격리합니다. OIDC, key lifecycle API,
-  전체 리소스 tenant 격리, 서버 측 rate limit, append-only audit log는 아직 없습니다.
+- [API](docs/API.md) · [Architecture](docs/ARCHITECTURE.md) · [Development](docs/DEVELOPMENT.md)
+- [Security](docs/SECURITY.md) · [Threat model](docs/THREAT_MODEL.md) · [Authentication](docs/AUTHENTICATION.md)
+- [Decompilation](docs/DECOMPILATION.md) · [Memory](docs/MEMORY_ANALYSIS.md) · [Dynamic](docs/DYNAMIC_ANALYSIS.md)
+- [Roadmap](docs/ROADMAP.md) · [Implementation record](docs/IMPLEMENTATION_PLAN.md)
 
 ## 라이선스
 
