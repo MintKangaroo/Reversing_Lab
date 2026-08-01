@@ -4,9 +4,15 @@
 // response is turned into an Error carrying the backend's structured detail message.
 
 const BASE = import.meta.env.VITE_API_BASE || '/api';
+let bearerKey = null;
 
 async function request(path, options = {}) {
-  const response = await fetch(`${BASE}${path}`, options);
+  const headers = { ...(options.headers || {}) };
+  if (bearerKey) headers.Authorization = `Bearer ${bearerKey}`;
+  const requestOptions = Object.keys(headers).length
+    ? { ...options, headers }
+    : options;
+  const response = await fetch(`${BASE}${path}`, requestOptions);
   if (!response.ok) {
     let detail = `${response.status} ${response.statusText}`;
     try {
@@ -15,14 +21,30 @@ async function request(path, options = {}) {
     } catch {
       /* response had no JSON body; keep the status text */
     }
-    throw new Error(detail);
+    const error = new Error(detail);
+    error.status = response.status;
+    throw error;
   }
   const contentType = response.headers.get('content-type') || '';
   return contentType.includes('application/json') ? response.json() : response;
 }
 
+async function download(path, filename) {
+  const response = await request(path);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   health: () => request('/health'),
+  setApiKey: (value) => { bearerKey = value || null; },
+  clearApiKey: () => { bearerKey = null; },
+  authMe: () => request('/auth/me'),
 
   uploadBinary: (file) => {
     const form = new FormData();
@@ -47,7 +69,8 @@ export const api = {
     }),
   artifacts: (sha) => request(`/binaries/${sha}/artifacts`),
   report: (sha) => request(`/binaries/${sha}/report?format=json`),
-  reportUrl: (sha, format = 'json') => `${BASE}/binaries/${sha}/report?format=${format}`,
+  downloadReport: (sha, format = 'json') =>
+    download(`/binaries/${sha}/report?format=${format}`, `analysis-${sha.slice(0, 12)}.${format === 'markdown' ? 'md' : format}`),
   disassembly: (sha, count = 200) => request(`/binaries/${sha}/disassembly?count=${count}`),
   cfg: (sha) => request(`/binaries/${sha}/cfg`),
   functions: (sha, offset = 0, limit = 1000) =>
@@ -84,7 +107,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answer }),
     }),
-  challengeArtifactUrl: (slug) => `${BASE}/challenges/${slug}/artifact`,
+  downloadChallengeArtifact: (slug, filename) =>
+    download(`/challenges/${slug}/artifact`, filename),
 
   listIntegrations: () => request('/integrations'),
   tooling: () => request('/tooling'),
@@ -150,7 +174,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     }),
-  ctfExportUrl: (id, format = 'markdown') => `${BASE}/ctf-workspaces/${id}/export?format=${format}`,
+  downloadCtfExport: (id, format = 'markdown') =>
+    download(`/ctf-workspaces/${id}/export?format=${format}`, `ctf-${id}.${format === 'markdown' ? 'md' : 'json'}`),
 };
 
 // Format a JS number as 0x-prefixed hex (addresses come from the API as integers).

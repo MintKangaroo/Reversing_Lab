@@ -44,6 +44,13 @@ export function SettingsWorkspace() {
       </div>
       <div className="settings-columns">
         <section className="settings-card">
+          <h2>Authentication</h2>
+          {Object.entries(configuration.authentication).map(([name, value]) => (
+            <div className="inspector-kv" key={name}><span>{name.replaceAll('_', ' ')}</span><b>{String(value)}</b></div>
+          ))}
+          <div className="security-callout">Project ownership is scoped when authentication is enabled. The binary catalog remains shared between authenticated operators.</div>
+        </section>
+        <section className="settings-card">
           <h2>Analysis limits</h2>
           {Object.entries(limits).map(([name, value]) => (
             <div className="inspector-kv" key={name}><span>{name.replaceAll('_', ' ')}</span><b>{name.endsWith('_bytes') ? readableBytes(value) : value}</b></div>

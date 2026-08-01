@@ -19,6 +19,7 @@ import { DynamicWorkspace } from './components/DynamicWorkspace.jsx';
 import { CtfWorkspace } from './components/CtfWorkspace.jsx';
 import { ReportsWorkspace } from './components/ReportsWorkspace.jsx';
 import { SettingsWorkspace } from './components/SettingsWorkspace.jsx';
+import { AuthGate } from './components/AuthGate.jsx';
 
 const NAVIGATION = [
   { id: 'home', label: 'Home', icon: '⌂', shortcut: '1' },
@@ -84,7 +85,7 @@ function ProductMark() {
   );
 }
 
-function Header({ route, selectedRecord, info, version, searchRef, filter, onFilter }) {
+function Header({ route, selectedRecord, info, version, searchRef, filter, onFilter, principal, onLogout }) {
   const title = NAVIGATION.find((item) => item.id === route)?.label || 'Reversing Lab';
   return (
     <>
@@ -115,6 +116,8 @@ function Header({ route, selectedRecord, info, version, searchRef, filter, onFil
         />
         <kbd>/</kbd>
       </label>
+      {principal?.authentication_enabled && <span className="principal-chip">{principal.id} · {principal.role}</span>}
+      {principal?.authentication_enabled && <button className="icon-button logout-button" onClick={onLogout} title="Forget API key and lock workbench" aria-label="Lock workbench">↪</button>}
       <StatusDot status="ready" label={version ? `API ${version}` : 'API connecting'} />
     </>
   );
@@ -596,6 +599,8 @@ export default function App() {
   const [functionAddress, setFunctionAddress] = useState(null);
   const [functionDetail, setFunctionDetail] = useState(null);
   const [functionRevision, setFunctionRevision] = useState(0);
+  const [accessState, setAccessState] = useState('checking');
+  const [principal, setPrincipal] = useState(null);
   const uploadRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -604,9 +609,43 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    api.health().then((health) => setVersion(health.version)).catch(() => setError('Backend API is unavailable.'));
-    refresh().catch((failure) => setError(failure.message));
+    let active = true;
+    async function initialize() {
+      try {
+        const health = await api.health();
+        if (!active) return;
+        setVersion(health.version);
+        if (health.authentication_required) {
+          setAccessState('required');
+          return;
+        }
+        setPrincipal({ id: 'local', role: 'admin', authentication_enabled: false });
+        await refresh();
+        if (active) setAccessState('ready');
+      } catch (failure) {
+        if (active) {
+          setError(failure.message || 'Backend API is unavailable.');
+          setAccessState('error');
+        }
+      }
+    }
+    initialize();
+    return () => { active = false; };
   }, [refresh]);
+
+  async function authenticated(nextPrincipal) {
+    setPrincipal(nextPrincipal);
+    await refresh();
+    setAccessState('ready');
+  }
+
+  function logout() {
+    api.clearApiKey();
+    setPrincipal(null);
+    setBinaries([]);
+    setSelected(null);
+    setAccessState('required');
+  }
 
   useEffect(() => {
     if (!selected) {
@@ -676,6 +715,23 @@ export default function App() {
 
   const selectedRecord = binaries.find((item) => item.sha256 === selected);
 
+  if (accessState === 'checking') {
+    return <main className="auth-gate"><Loading label="Checking API access…" /></main>;
+  }
+  if (accessState === 'required') {
+    return <AuthGate onAuthenticated={authenticated} />;
+  }
+  if (accessState === 'error') {
+    return (
+      <main className="auth-gate">
+        <section className="auth-card">
+          <h1>API unavailable</h1>
+          <ErrorBanner error={error} />
+        </section>
+      </main>
+    );
+  }
+
   let workspace;
   if (route === 'home') workspace = <HomeDashboard binaries={binaries} onOpen={openSample} onUpload={() => uploadRef.current?.click()} />;
   else if (route === 'projects') workspace = <ProjectSamples binaries={binaries} onOpen={openSample} onUpload={() => uploadRef.current?.click()} />;
@@ -711,6 +767,8 @@ export default function App() {
             searchRef={searchRef}
             filter={filter}
             onFilter={setFilter}
+            principal={principal}
+            onLogout={logout}
           />
         )}
         navigation={<ActivityNavigation route={route} navigate={navigate} />}

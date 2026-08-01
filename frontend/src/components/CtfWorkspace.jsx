@@ -77,6 +77,15 @@ export function CtfWorkspace({ sample }) {
     patch({ [field]: [...selected[field], value.trim()] }).then(clear);
   }
 
+  async function exportWorkspace(format) {
+    try {
+      setError(null);
+      await api.downloadCtfExport(selected.id, format);
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
+
   if (!items) return <Loading label="Loading CTF workspaces…" />;
 
   return (
@@ -97,7 +106,7 @@ export function CtfWorkspace({ sample }) {
               <>
                 <div className="ctf-header">
                   <div><span className="eyebrow">{selected.category} · {selected.difficulty}</span><h2>{selected.title}</h2>{selected.binary_sha256 && <code>{selected.binary_sha256}</code>}</div>
-                  <div><a className="btn secondary" href={api.ctfExportUrl(selected.id, 'markdown')}>Export Markdown</a><a className="btn secondary" href={api.ctfExportUrl(selected.id, 'json')}>JSON</a></div>
+                  <div><button className="btn secondary" type="button" onClick={() => exportWorkspace('markdown')}>Export Markdown</button><button className="btn secondary" type="button" onClick={() => exportWorkspace('json')}>JSON</button></div>
                 </div>
                 <div className="ctf-grid">
                   <section className="ctf-card checklist">

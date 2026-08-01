@@ -6,6 +6,15 @@ export function ReportsWorkspace({ sample }) {
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState(null);
 
+  async function exportReport(format) {
+    try {
+      setError(null);
+      await api.downloadReport(sample.sha256, format);
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
+
   useEffect(() => {
     if (!sample) {
       setPreview(null);
@@ -34,9 +43,9 @@ export function ReportsWorkspace({ sample }) {
             <div><ProvenanceBadge kind="verified" /><h2>{sample.filename}</h2><code>{sample.sha256}</code></div>
             <div className="report-actions">
               {['json', 'markdown', 'html'].map((format) => (
-                <a className="btn secondary" key={format} href={api.reportUrl(sample.sha256, format)}>
+                <button className="btn secondary" type="button" key={format} onClick={() => exportReport(format)}>
                   Export {format.toUpperCase()}
-                </a>
+                </button>
               ))}
             </div>
           </section>
