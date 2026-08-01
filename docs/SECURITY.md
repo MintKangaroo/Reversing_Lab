@@ -54,7 +54,7 @@ contents or decoder input.
 
 - add OIDC/session authentication and project-level authorization;
 - terminate TLS at a trusted reverse proxy;
-- use PostgreSQL with migrations and encrypted backups;
+- use the Alembic workflow, add PostgreSQL migration CI, and encrypt backups;
 - isolate parser/external-tool workers with OS resource controls;
 - keep storage non-executable and mount it `noexec,nodev,nosuid`;
 - restrict outbound network and CORS origins;

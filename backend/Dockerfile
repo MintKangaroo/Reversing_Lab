@@ -12,8 +12,9 @@ COPY requirements.txt requirements-dev.txt ./
 RUN pip install -r requirements.txt -r requirements-dev.txt
 COPY . .
 RUN mkdir -p /var/lib/rlab/binaries \
+    && chmod 755 /workspace/backend/docker-entrypoint.sh \
     && chown -R rlab:rlab /workspace/backend /var/lib/rlab
 
 USER rlab
 EXPOSE 8000
-CMD ["uvicorn", "reversing_lab.api.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "docker-entrypoint.sh"]

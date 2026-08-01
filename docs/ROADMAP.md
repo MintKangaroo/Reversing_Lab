@@ -10,11 +10,12 @@
 - DB-backed jobs, memory triage, Volatility allowlist;
 - disabled/mock dynamic provider and readiness UI;
 - persistent CTF workspace and report export;
+- Alembic baseline with conservative legacy SQLite bootstrap;
 - backend/frontend/security regression tests, CI, development containers.
 
 ## Near term
 
-1. Alembic migrations and PostgreSQL CI.
+1. PostgreSQL migration CI and subsequent revision upgrade/downgrade fixtures.
 2. authentication, project RBAC, audit-event persistence, retention/deletion API.
 3. RetDec and r2ghidra adapters with the same process hardening contract.
 4. richer PE/ELF mitigation metadata: canary, CFG, signing, debug/build ID, TLS, overlay.

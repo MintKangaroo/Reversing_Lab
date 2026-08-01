@@ -1,12 +1,7 @@
-"""SQLAlchemy ORM models.
+"""SQLAlchemy ORM models for metadata indexes and analyst-owned state.
 
-Two tables:
-
-* ``binaries`` — metadata for each uploaded sample, keyed by its SHA-256 (the natural
-  identity of a binary). Raw bytes live on disk under ``storage_dir``; only the path
-  and metadata are stored in the database.
-* ``challenge_attempts`` — an append-only log of challenge submissions, for progress
-  tracking and scoreboards.
+Large binary, memory, and event bodies remain content-addressed filesystem artifacts;
+these tables store identities, state, relationships, and artifact references.
 """
 
 from __future__ import annotations

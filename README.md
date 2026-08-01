@@ -11,7 +11,7 @@ Mach-O 정적 분석, 함수/CFG/call graph, 추정 pseudo-C, 패킹·난독화 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-95_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-98_passing-3fb950)
 ![Frontend tests](https://img.shields.io/badge/frontend_tests-7_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -83,6 +83,14 @@ pip install -r requirements.txt -r requirements-dev.txt
 uvicorn reversing_lab.api.app:app --reload --port 8000
 ```
 
+새 운영 DB는 API 시작 전에 migration을 적용하십시오. 기존 `create_all` 기반 DB는 정확한
+schema 일치 검증 후에만 자동 baseline stamp됩니다.
+
+```bash
+cd backend
+python -m reversing_lab.database.migrate
+```
+
 다른 터미널에서:
 
 ```bash
@@ -151,7 +159,7 @@ npm run build
 npm audit
 ```
 
-현재 검증 기준은 백엔드 95개, 프런트엔드 7개 테스트 통과와 프로덕션 빌드 성공입니다.
+현재 검증 기준은 백엔드 98개, 프런트엔드 7개 테스트 통과와 프로덕션 빌드 성공입니다.
 fixture는 테스트 시 생성하는 무해한 최소 ELF/PE/Mach-O 또는 데이터 버퍼이며 실제 악성코드를
 포함하지 않습니다. CI 명령은 [.github/workflows/ci.yml](.github/workflows/ci.yml)에 있습니다.
 
@@ -191,7 +199,8 @@ RLAB_MAX_CONCURRENT_JOBS=2
   모델은 확장 예정입니다.
 - 함수 경계, 타입, indirect call/jump, pseudo-C는 휴리스틱이므로 완전하지 않습니다.
 - static report schema는 아직 동적 run과 memory dump를 binary sample에 자동 연결하지 않습니다.
-- SQLite 스키마는 개발 환경에서 `create_all`로 추가되며 Alembic migration은 아직 없습니다.
+- SQLite 개발 환경은 계속 지원되며 운영 배포는 Alembic baseline을 사용합니다. PostgreSQL
+  전환 및 실제 upgrade 이력 검증은 추가 작업이 필요합니다.
 - 인증/RBAC/다중 사용자 격리는 아직 없으므로 인터넷에 직접 노출하면 안 됩니다.
 
 ## 라이선스

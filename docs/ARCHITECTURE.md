@@ -84,8 +84,9 @@ SQLAlchemy models index projects, binaries, annotations, bookmarks, jobs, artifa
 memory dumps, dynamic runs, and CTF state. Binary/dump/derived bytes use hashes as
 filenames. High-volume events/results live in gzip JSON artifacts; SQL stores metadata
 and references. SQLite is the supported development database. The repository pattern
-avoids SQLite-only query constructs, but PostgreSQL deployment and Alembic migrations
-remain future work.
+avoids SQLite-only query constructs. Alembic owns the baseline schema; a conservative
+bootstrap stamps an older `create_all` database only when every table and column
+matches current metadata. PostgreSQL deployment validation remains future work.
 
 ## Analysis accuracy and provenance
 
