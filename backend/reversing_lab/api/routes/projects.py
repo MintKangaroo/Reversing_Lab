@@ -4,18 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 
-from ...database import ProjectRepository
-from ..auth import Principal, get_current_principal
-from ..dependencies import get_project_repository
+from ...database import BinaryRepository, ProjectRepository
+from ..auth import Principal, get_current_principal, resource_scope
+from ..dependencies import get_binary_repository, get_project_repository
 from ..schemas import ProjectCreateSchema, ProjectPatchSchema, ProjectSchema
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _scope(principal: Principal) -> str | None:
-    if not principal.authentication_enabled or principal.role == "admin":
-        return None
-    return principal.id
+    owner_id, unrestricted = resource_scope(principal)
+    return None if unrestricted else owner_id
 
 
 def _schema(
@@ -51,7 +50,7 @@ def create_project(
     repository: ProjectRepository = Depends(get_project_repository),
     principal: Principal = Depends(get_current_principal),
 ) -> ProjectSchema:
-    owner_id = principal.id if principal.authentication_enabled else None
+    owner_id, _ = resource_scope(principal)
     return _schema(
         repository.create(payload.name, payload.description, owner_id),
         repository,
@@ -93,9 +92,11 @@ def add_project_sample(
     project_id: str,
     sha256: str,
     repository: ProjectRepository = Depends(get_project_repository),
+    binaries: BinaryRepository = Depends(get_binary_repository),
     principal: Principal = Depends(get_current_principal),
 ) -> ProjectSchema:
     owner_scope = _scope(principal)
+    binaries.get(sha256)
     repository.add_sample(project_id, sha256, owner_scope)
     return _schema(
         repository.get(project_id, owner_scope), repository, owner_scope

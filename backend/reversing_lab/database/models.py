@@ -20,6 +20,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+DEFAULT_OWNER_ID = "local"
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -44,12 +46,30 @@ class BinaryRecord(Base):
     )
 
 
+class BinaryAccessRecord(Base):
+    """Principal grant for one immutable content-addressed binary."""
+
+    __tablename__ = "binary_access"
+
+    owner_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    binary_sha256: Mapped[str] = mapped_column(
+        String(64), ForeignKey("binaries.sha256"), primary_key=True
+    )
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
 class ChallengeAttempt(Base):
     """A single challenge submission (append-only)."""
 
     __tablename__ = "challenge_attempts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     challenge_slug: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     submission: Mapped[str] = mapped_column(String(512), nullable=False)
     correct: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -66,8 +86,8 @@ class ProjectRecord(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    owner_id: Mapped[str | None] = mapped_column(
-        String(128), nullable=True, index=True
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
@@ -98,10 +118,19 @@ class UserAnnotationRecord(Base):
 
     __tablename__ = "user_annotations"
     __table_args__ = (
-        UniqueConstraint("binary_sha256", "address", "kind", name="uq_annotation_target"),
+        UniqueConstraint(
+            "owner_id",
+            "binary_sha256",
+            "address",
+            "kind",
+            name="uq_annotation_target",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     binary_sha256: Mapped[str] = mapped_column(
         String(64), ForeignKey("binaries.sha256"), nullable=False, index=True
     )
@@ -121,10 +150,15 @@ class BookmarkRecord(Base):
 
     __tablename__ = "bookmarks"
     __table_args__ = (
-        UniqueConstraint("binary_sha256", "address", name="uq_bookmark_target"),
+        UniqueConstraint(
+            "owner_id", "binary_sha256", "address", name="uq_bookmark_target"
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     binary_sha256: Mapped[str] = mapped_column(
         String(64), ForeignKey("binaries.sha256"), nullable=False, index=True
     )
@@ -142,11 +176,18 @@ class AnalysisArtifactRecord(Base):
     __tablename__ = "analysis_artifacts"
     __table_args__ = (
         UniqueConstraint(
-            "binary_sha256", "kind", "content_sha256", name="uq_artifact_content"
+            "owner_id",
+            "binary_sha256",
+            "kind",
+            "content_sha256",
+            name="uq_artifact_content",
         ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     binary_sha256: Mapped[str] = mapped_column(
         String(64), ForeignKey("binaries.sha256"), nullable=False, index=True
     )
@@ -166,6 +207,9 @@ class AnalysisJobRecord(Base):
     __tablename__ = "analysis_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     kind: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     target_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
     state: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
@@ -187,6 +231,9 @@ class MemoryDumpRecord(Base):
     __tablename__ = "memory_dumps"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -205,6 +252,9 @@ class DynamicAnalysisRunRecord(Base):
     __tablename__ = "dynamic_analysis_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     job_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("analysis_jobs.id"), nullable=False, unique=True
     )
@@ -225,6 +275,9 @@ class CtfWorkspaceRecord(Base):
     __tablename__ = "ctf_workspaces"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     category: Mapped[str] = mapped_column(String(64), default="reversing", nullable=False)

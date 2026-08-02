@@ -45,7 +45,12 @@ def request_job_cancel(
 
 
 @router.get("/{job_id}/stream")
-def stream_job(job_id: str) -> StreamingResponse:
+def stream_job(
+    job_id: str,
+    repository: JobRepository = Depends(get_job_repository),
+) -> StreamingResponse:
+    repository.get(job_id)
+
     async def events():
         last = None
         while True:

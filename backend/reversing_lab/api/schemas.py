@@ -423,7 +423,7 @@ class ProjectSchema(BaseModel):
     id: str
     name: str
     description: str
-    owner_id: str | None
+    owner_id: str
     created_at: datetime
     updated_at: datetime
     sample_sha256: list[str] = Field(default_factory=list)
