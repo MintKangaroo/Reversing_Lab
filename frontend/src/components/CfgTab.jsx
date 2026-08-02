@@ -97,6 +97,8 @@ export function CfgTab({ sha }) {
                 <rect className="cfg-block" x={p.x} y={p.y} width={p.width} height={p.height} rx="6" />
                 <text className="cfg-block-title" x={p.x + PAD} y={p.y + 17}>
                   block {block.id} @ 0x{block.start_address.toString(16)}
+                  {block.is_loop_header ? '  ↻ loop header' : ''}
+                  {block.is_unreachable ? '  unreachable' : ''}
                 </text>
                 {block.instructions.slice(0, p.shown).map((insn, i) => (
                   <text key={insn.address} className="cfg-insn" x={p.x + PAD} y={p.y + TITLE_H + PAD + i * LINE_H + 4}>

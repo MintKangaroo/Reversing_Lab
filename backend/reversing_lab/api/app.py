@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .. import __version__
@@ -17,7 +17,23 @@ from ..config import get_settings
 from ..database.session import init_db
 from ..logging_config import configure_logging
 from .errors import register_exception_handlers
-from .routes import binaries, challenges, health, integrations
+from .auth import authorize_request
+from .routes import (
+    analysis,
+    auth,
+    binaries,
+    challenges,
+    ctf,
+    dynamic,
+    health,
+    integrations,
+    jobs,
+    memory,
+    projects,
+    reports,
+    tooling,
+    tools,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +58,14 @@ def create_app() -> FastAPI:
         version=__version__,
         description="Static analysis of ELF/PE/Mach-O binaries and RE challenges.",
         lifespan=_lifespan,
+        dependencies=[Depends(authorize_request)],
     )
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
 
@@ -56,7 +73,17 @@ def create_app() -> FastAPI:
 
     api_prefix = "/api"
     app.include_router(health.router, prefix=api_prefix)
+    app.include_router(auth.router, prefix=api_prefix)
     app.include_router(binaries.router, prefix=api_prefix)
+    app.include_router(analysis.router, prefix=api_prefix)
+    app.include_router(projects.router, prefix=api_prefix)
+    app.include_router(tools.router, prefix=api_prefix)
+    app.include_router(tooling.router, prefix=api_prefix)
+    app.include_router(jobs.router, prefix=api_prefix)
+    app.include_router(memory.router, prefix=api_prefix)
+    app.include_router(dynamic.router, prefix=api_prefix)
+    app.include_router(ctf.router, prefix=api_prefix)
+    app.include_router(reports.router, prefix=api_prefix)
     app.include_router(challenges.router, prefix=api_prefix)
     app.include_router(integrations.router, prefix=api_prefix)
 

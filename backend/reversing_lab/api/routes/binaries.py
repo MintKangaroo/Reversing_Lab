@@ -2,17 +2,27 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 
-from ...analyzer import detect_packing, entropy_profile, extract_strings, hex_page
+from ...analyzer import (
+    detect_packing,
+    entropy_profile,
+    extract_strings,
+    hex_page,
+    unpack_upx,
+)
 from ...config import get_settings
-from ...database import BinaryRepository
+from ...database import ArtifactRepository, BinaryRepository
 from ...disassembler import build_cfg, disassemble
 from ...errors import UnsupportedFormatError
 from ...integrations import get_adapter
 from ...parser import detect_format
-from ..dependencies import get_binary_repository
+from ..dependencies import get_artifact_repository, get_binary_repository
 from ..schemas import (
+    ArtifactSchema,
     BinaryInfoSchema,
     BinarySummarySchema,
     CfgSchema,
@@ -23,8 +33,11 @@ from ..schemas import (
     PackingReportSchema,
     StringSchema,
     StringsResponse,
+    UnpackRequestSchema,
+    UnpackResultSchema,
 )
 from ..services import parse_cached
+from ..uploads import read_upload_limited, safe_display_filename
 
 router = APIRouter(prefix="/binaries", tags=["binaries"])
 
@@ -42,16 +55,15 @@ async def upload_binary(
 ) -> BinarySummarySchema:
     """Upload a binary. Validates size and format before persisting."""
     settings = get_settings()
-    data = await file.read()
-
-    if len(data) > settings.max_upload_bytes:
-        raise UnsupportedFormatError(
-            f"File exceeds the {settings.max_upload_bytes}-byte upload limit."
-        )
+    data = await read_upload_limited(file, settings.max_upload_bytes, "Binary")
     # Reject unsupported formats up front (raises UnsupportedFormatError -> HTTP 415).
     fmt = detect_format(data)
 
-    record = repo.save(data, filename=file.filename or "upload.bin", binary_format=fmt.value)
+    record = repo.save(
+        data,
+        filename=safe_display_filename(file.filename, "upload.bin"),
+        binary_format=fmt.value,
+    )
     return BinarySummarySchema.model_validate(record)
 
 
@@ -118,6 +130,61 @@ def binary_packing(
     """Packer/obfuscation detection with rationale."""
     data, info = _load(repo, sha256)
     return PackingReportSchema.model_validate(detect_packing(info, data))
+
+
+@router.post("/{sha256}/unpack", response_model=UnpackResultSchema)
+def unpack_binary(
+    sha256: str,
+    _: UnpackRequestSchema,
+    repo: BinaryRepository = Depends(get_binary_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+) -> UnpackResultSchema:
+    """Explicitly invoke the safe UPX adapter and preserve a separate artifact."""
+    record = repo.get(sha256)
+    result, data = unpack_upx(Path(record.storage_path), sha256)
+    artifact = artifacts.save(
+        sha256,
+        "unpacked-upx",
+        data,
+        metadata={
+            "provider": result.provider,
+            "original_sha256": result.original_sha256,
+            "unpacked_sha256": result.unpacked_sha256,
+            "original_size": result.original_size,
+            "unpacked_size": result.unpacked_size,
+        },
+    )
+    return UnpackResultSchema(
+        provider=result.provider,
+        artifact_id=artifact.id,
+        original_sha256=result.original_sha256,
+        unpacked_sha256=result.unpacked_sha256,
+        original_size=result.original_size,
+        unpacked_size=result.unpacked_size,
+        section_changes=list(result.section_changes),
+        warnings=list(result.warnings),
+    )
+
+
+@router.get("/{sha256}/artifacts", response_model=list[ArtifactSchema])
+def binary_artifacts(
+    sha256: str,
+    repo: BinaryRepository = Depends(get_binary_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+) -> list[ArtifactSchema]:
+    repo.get(sha256)
+    return [
+        ArtifactSchema(
+            id=record.id,
+            binary_sha256=record.binary_sha256,
+            kind=record.kind,
+            content_sha256=record.content_sha256,
+            size=record.size,
+            metadata=json.loads(record.metadata_json),
+            created_at=record.created_at,
+        )
+        for record in artifacts.list(sha256)
+    ]
 
 
 @router.get("/{sha256}/disassembly", response_model=DisassemblySchema)

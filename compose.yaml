@@ -1,0 +1,41 @@
+services:
+  api:
+    build:
+      context: ./backend
+    environment:
+      RLAB_DATABASE_URL: sqlite:////var/lib/rlab/reversing_lab.db
+      RLAB_STORAGE_DIR: /var/lib/rlab/binaries
+      RLAB_CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
+      RLAB_SANDBOX_PROVIDER: disabled
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/workspace/backend
+      - rlab-data:/var/lib/rlab
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_TARGET: http://api:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/workspace/frontend
+      - frontend-modules:/workspace/frontend/node_modules
+    depends_on:
+      - api
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  rlab-data:
+  frontend-modules:

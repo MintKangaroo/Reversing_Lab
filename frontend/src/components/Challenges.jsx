@@ -22,6 +22,14 @@ function ChallengeCard({ challenge, solved, onSolved }) {
     }
   }
 
+  async function downloadArtifact() {
+    try {
+      await api.downloadChallengeArtifact(challenge.slug, challenge.artifact_filename);
+    } catch (error) {
+      setStatus({ correct: false, message: error.message });
+    }
+  }
+
   return (
     <div className="card challenge-card">
       <div className="row" style={{ justifyContent: 'space-between', display: 'flex' }}>
@@ -38,9 +46,9 @@ function ChallengeCard({ challenge, solved, onSolved }) {
         <div className="hint" style={{ marginTop: 6 }}>{challenge.hint}</div>
       </details>
       <div className="row">
-        <a className="btn secondary" href={api.challengeArtifactUrl(challenge.slug)}>
+        <button className="btn secondary" type="button" onClick={downloadArtifact}>
           ↓ Download {challenge.artifact_filename} ({challenge.artifact_size} B)
-        </a>
+        </button>
       </div>
       <form className="row" onSubmit={submit}>
         <input
