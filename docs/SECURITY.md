@@ -9,9 +9,11 @@ must enable it behind TLS and proxy rate limiting; auth-disabled mode must not b
 exposed directly to the internet.
 
 The built-in roles are deliberately coarse. Viewers are HTTP read-only, analysts may
-mutate state, and admins may also audit all projects. Non-admin project records are
-owner-scoped, but sample/dump/run/job/CTF data remains shared between authenticated
-operators. This is not a complete multi-tenant boundary. See
+mutate state, and admins may audit all resources. Non-admin access is enforced through
+binary grants and owner-scoped repositories for projects, overlays, artifacts, jobs,
+dumps, dynamic runs, CTF state, and reports. Cross-owner lookups return 404. This is
+still not a complete identity/control plane: OIDC, centralized revocation, persistent
+audit events, retention APIs, and server-side rate limits remain future work. See
 [AUTHENTICATION.md](AUTHENTICATION.md).
 
 ## Upload and storage controls
@@ -21,6 +23,8 @@ operators. This is not a complete multi-tenant boundary. See
 - executable formats are magic-allowlisted before binary persistence;
 - user filenames are sanitized basenames used only as display metadata;
 - file paths are derived from server-computed SHA-256 values;
+- identical binary bytes are physically deduplicated while per-principal grants retain
+  isolated display filenames;
 - malformed/non-lowercase SHA paths resolve to 404, never a filesystem lookup;
 - archives are not accepted, avoiding zip-slip, nested archive, and decompression bomb
   paths.
@@ -61,8 +65,7 @@ contents or decoder input.
 
 - enable API-key auth or add OIDC, terminate TLS, rate-limit failures, and redact
   authorization headers from logs;
-- extend ownership enforcement to samples, annotations, dumps, runs, jobs, artifacts,
-  reports, and CTF workspaces before serving mutually untrusted tenants;
+- test every new repository and ID-based route for owner filtering and 404 behavior;
 - terminate TLS at a trusted reverse proxy;
 - use the Alembic workflow and tested PostgreSQL migration path; rehearse restore and
   encrypt database connections and backups;

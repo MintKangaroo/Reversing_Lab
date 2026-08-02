@@ -128,7 +128,66 @@ def test_pre_ownership_legacy_schema_is_stamped_then_upgraded(
     columns = {item["name"] for item in inspect(engine).get_columns("projects")}
     assert "owner_id" in columns
     with engine.connect() as connection:
-        name = connection.scalar(
-            text("SELECT name FROM projects WHERE id = 'legacy-project'")
+        project = connection.execute(
+            text(
+                "SELECT name, owner_id FROM projects "
+                "WHERE id = 'legacy-project'"
+            )
+        ).one()
+    assert project.name == "Legacy investigation"
+    assert project.owner_id == "local"
+
+
+def test_resource_ownership_migration_backfills_existing_records(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "pre-resource-ownership.db"
+    config = _config(database)
+    command.upgrade(config, "0003_64_bit_values")
+    engine = create_engine(f"sqlite:///{database}")
+    digest = "b" * 64
+    now = datetime.now(timezone.utc)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO binaries "
+                "(sha256, filename, binary_format, size, storage_path, created_at) "
+                "VALUES (:sha256, :filename, 'ELF', 16, :path, :created_at)"
+            ),
+            {
+                "sha256": digest,
+                "filename": "legacy-owned.elf",
+                "path": f"data/binaries/{digest}",
+                "created_at": now,
+            },
         )
-    assert name == "Legacy investigation"
+        connection.execute(
+            text(
+                "INSERT INTO user_annotations "
+                "(binary_sha256, address, kind, value, created_at, updated_at) "
+                "VALUES (:sha256, 4198400, 'comment', 'preserve me', "
+                ":created_at, :updated_at)"
+            ),
+            {"sha256": digest, "created_at": now, "updated_at": now},
+        )
+
+    command.upgrade(config, "head")
+    command.check(config)
+    with engine.connect() as connection:
+        access = connection.execute(
+            text(
+                "SELECT owner_id, filename FROM binary_access "
+                "WHERE binary_sha256 = :sha256"
+            ),
+            {"sha256": digest},
+        ).one()
+        annotation_owner = connection.scalar(
+            text(
+                "SELECT owner_id FROM user_annotations "
+                "WHERE binary_sha256 = :sha256"
+            ),
+            {"sha256": digest},
+        )
+    assert access.owner_id == "local"
+    assert access.filename == "legacy-owned.elf"
+    assert annotation_owner == "local"

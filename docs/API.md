@@ -10,11 +10,13 @@ Authentication defaults to disabled for local backward compatibility. With
 `RLAB_AUTH_MODE=api_key`, `GET /api/health` remains public and every other endpoint
 requires `Authorization: Bearer <raw-key>`. `GET /api/auth/me` returns the current
 principal and role. Viewers can use only GET/HEAD/OPTIONS; analyst and admin keys can
-mutate state. Project reads/writes are owner-scoped for non-admin users.
+mutate state. Resource reads/writes are owner-scoped for non-admin users.
 
-The sample and other resource catalogs are currently shared between authenticated
-operators, so this is not complete tenant isolation. Configuration and deployment are
-documented in [AUTHENTICATION.md](AUTHENTICATION.md).
+Binary access uses per-principal grants while preserving hash-based physical
+deduplication. Projects, annotations/bookmarks, artifacts, jobs, dumps, dynamic runs,
+CTF state, and reports use or inherit the principal owner scope. Cross-owner identifiers
+return 404; admins retain global audit access. Configuration and residual identity
+limitations are documented in [AUTHENTICATION.md](AUTHENTICATION.md).
 
 ## Samples and static analysis
 
@@ -43,7 +45,7 @@ Functions, strings, hex, graphs, and high-volume analysis are bounded or paginat
 | GET / POST | `/projects` |
 | GET / PATCH | `/projects/{id}` |
 | POST | `/projects/{id}/samples/{sha}` |
-| GET | `/jobs`, `/jobs/{id}`, `/jobs/{id}/events` |
+| GET | `/jobs`, `/jobs/{id}`, `/jobs/{id}/stream` |
 | POST | `/jobs/{id}/cancel` |
 | POST / GET | `/memory-dumps`, `/memory-dumps/{id}` |
 | POST / GET | `/memory-dumps/{id}/analysis` |

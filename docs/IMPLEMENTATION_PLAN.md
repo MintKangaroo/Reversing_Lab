@@ -80,9 +80,10 @@ Baseline:
 7. Challenge submissions are stored verbatim. CTF notes are user-authored evidence,
    but candidate secrets should be clearly scoped and exportable/deletable; decoder
    inputs should not be persisted by default.
-8. **Partially resolved in follow-up:** optional API-key roles and project ownership are
-   implemented. Complete resource ownership, OIDC, rate limiting, and audit persistence
-   remain required for mutually untrusted tenants.
+8. **Resolved at the application owner boundary:** optional API-key roles, binary
+   grants, and owner-scoped resource repositories are implemented. OIDC, rate limiting,
+   persistent audit events, and retention workflows remain required for a mature
+   multi-tenant control plane.
 9. There is no frontend lint, type-check, or test script. New UI code will avoid a
    broad TypeScript migration and introduce only the minimum test/tooling needed.
 10. Python 3.10 is the current supported baseline despite the target preference for
@@ -142,8 +143,8 @@ verification before the follow-up hardening work was:
 Subsequent hardening added Alembic revisions, optional API-key roles, project
 ownership, and PostgreSQL 16 migration/repository contract CI. Remaining items are
 recorded in [ROADMAP.md](ROADMAP.md), including production database operations, full
-resource ownership/OIDC, RetDec/r2ghidra, richer memory normalization, and a real
-VM-backed sandbox provider.
+OIDC/audit/retention controls, RetDec/r2ghidra, richer memory normalization, and a
+real VM-backed sandbox provider.
 
 Follow-up verification on 2026-08-02: 104 backend tests and 10 frontend tests passed;
 the Vite production build and high-severity npm audit also passed.
@@ -151,3 +152,8 @@ the Vite production build and high-severity npm audit also passed.
 PostgreSQL follow-up on 2026-08-02: revision 0003 converted persisted sizes and virtual
 addresses to portable 64-bit columns. A PostgreSQL 16 container passed fresh upgrade,
 drift check, downgrade/re-upgrade, and high-address repository round-trip tests.
+
+Resource-ownership follow-up on 2026-08-02: revision 0004 added content-addressed
+binary grants and principal ownership for mutable investigation resources. SQLite and
+PostgreSQL contracts cover legacy `local` backfill, cross-owner 404 responses,
+per-principal filenames and overlays, and admin audit access.

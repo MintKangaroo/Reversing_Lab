@@ -48,6 +48,15 @@ def _load(repo: BinaryRepository, sha256: str):
     return data, parse_cached(sha256, data)
 
 
+def _summary(repo: BinaryRepository, record) -> BinarySummarySchema:
+    return BinarySummarySchema(
+        sha256=record.sha256,
+        filename=repo.display_filename(record.sha256),
+        binary_format=record.binary_format,
+        size=record.size,
+    )
+
+
 @router.post("", response_model=BinarySummarySchema, status_code=201)
 async def upload_binary(
     file: UploadFile = File(...),
@@ -64,7 +73,7 @@ async def upload_binary(
         filename=safe_display_filename(file.filename, "upload.bin"),
         binary_format=fmt.value,
     )
-    return BinarySummarySchema.model_validate(record)
+    return _summary(repo, record)
 
 
 @router.get("", response_model=list[BinarySummarySchema])
@@ -72,7 +81,7 @@ def list_binaries(
     repo: BinaryRepository = Depends(get_binary_repository),
 ) -> list[BinarySummarySchema]:
     """List recently uploaded binaries, newest first."""
-    return [BinarySummarySchema.model_validate(r) for r in repo.list()]
+    return [_summary(repo, record) for record in repo.list()]
 
 
 @router.get("/{sha256}/info", response_model=BinaryInfoSchema)

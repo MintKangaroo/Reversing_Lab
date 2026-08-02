@@ -6,10 +6,29 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import BigInteger, create_engine, inspect
 
 from ..config import get_settings
 from .models import Base
+
+_OWNED_TABLES = {
+    "challenge_attempts",
+    "user_annotations",
+    "bookmarks",
+    "analysis_artifacts",
+    "analysis_jobs",
+    "memory_dumps",
+    "dynamic_analysis_runs",
+    "ctf_workspaces",
+}
+_PORTABLE_BIGINT_COLUMNS = {
+    ("binaries", "size"),
+    ("analysis_artifacts", "size"),
+    ("memory_dumps", "size"),
+    ("user_annotations", "address"),
+    ("bookmarks", "address"),
+    ("ctf_notes", "address"),
+}
 
 
 def _alembic_config(database_url: str) -> Config:
@@ -26,24 +45,36 @@ def _legacy_revision(database_url: str) -> str:
         inspector = inspect(engine)
         actual_tables = set(inspector.get_table_names())
         expected_tables = set(Base.metadata.tables)
-        if actual_tables != expected_tables:
-            missing = sorted(expected_tables - actual_tables)
+        pre_ownership_tables = expected_tables - {"binary_access"}
+        if (
+            actual_tables != expected_tables
+            and actual_tables != pre_ownership_tables
+        ):
+            missing = sorted(pre_ownership_tables - actual_tables)
             unexpected = sorted(actual_tables - expected_tables)
             raise RuntimeError(
                 "Refusing to stamp an unversioned database with schema drift: "
                 f"missing={missing}, unexpected={unexpected}."
             )
-        legacy_revision = "0002_project_ownership"
+
+        resource_ownership_present = actual_tables == expected_tables
+        project_owner_present = True
+        portable_bigints = True
         for name, table in Base.metadata.tables.items():
-            actual_columns = {
-                column["name"] for column in inspector.get_columns(name)
+            if name not in actual_tables:
+                continue
+            inspected_columns = {
+                column["name"]: column for column in inspector.get_columns(name)
             }
+            actual_columns = set(inspected_columns)
             expected_columns = set(table.columns.keys())
+            if not resource_ownership_present and name in _OWNED_TABLES:
+                expected_columns.remove("owner_id")
             if (
                 name == "projects"
                 and actual_columns == expected_columns - {"owner_id"}
             ):
-                legacy_revision = "0001_initial_schema"
+                project_owner_present = False
                 continue
             if actual_columns != expected_columns:
                 raise RuntimeError(
@@ -51,7 +82,19 @@ def _legacy_revision(database_url: str) -> str:
                     f"in {name!r}: missing={sorted(expected_columns - actual_columns)}, "
                     f"unexpected={sorted(actual_columns - expected_columns)}."
                 )
-        return legacy_revision
+            for table_name, column_name in _PORTABLE_BIGINT_COLUMNS:
+                if table_name == name and not isinstance(
+                    inspected_columns[column_name]["type"], BigInteger
+                ):
+                    portable_bigints = False
+
+        if resource_ownership_present:
+            return "0004_resource_ownership"
+        if not project_owner_present:
+            return "0001_initial_schema"
+        if portable_bigints:
+            return "0003_64_bit_values"
+        return "0002_project_ownership"
     finally:
         engine.dispose()
 

@@ -40,8 +40,8 @@ are operator-controlled but still validated before sensitive use.
 | stored HTML injection | report escaping, React default escaping | Markdown consumers choose their own renderer policy |
 | result spoofing | provenance/source provider fields | provider authenticity/signing not implemented |
 | unauthenticated access | optional digest-backed bearer keys, fail-fast configuration | auth is disabled by default; TLS and proxy rate limiting are operator duties |
-| cross-user project access | owner-scoped queries; admin audit role; 404 on mismatch | legacy unowned projects require admin handling |
-| cross-user non-project data access | authenticated catalog boundary only | samples, dumps, runs, jobs, CTF state, and artifacts need owner scoping for multi-tenancy |
+| cross-user resource access | binary grants, owner-scoped repositories, inherited parent scope, 404 on mismatch | admin is globally trusted; authorization bugs remain possible |
+| filename metadata disclosure | per-grant display filenames; hash-only storage paths | admins can inspect global metadata for operations |
 | resource starvation | bounded jobs/results, cancellation | in-process runner is not a hard CPU isolation boundary |
 
 ## Abuse cases explicitly rejected
@@ -53,7 +53,8 @@ server-side code execution for decoder loops.
 ## Assumptions
 
 - users analyze only samples they own or are authorized to inspect;
-- authenticated operators in one deployment are mutually trusted for shared catalogs;
+- non-admin authenticated principals may be mutually untrusted at the application owner boundary;
+- admins and operators remain trusted across all owner scopes;
 - operators protect the host and external-tool installation;
 - dynamic providers implement their advertised isolation outside the API process;
 - generated findings are reviewed rather than treated as verdicts.

@@ -39,6 +39,7 @@ def export_binary_report(
         functions=functions,
         annotations=annotations.list(sha256),
         bookmarks=bookmarks.list(sha256),
+        display_filename=binaries.display_filename(sha256),
     )
     if format == "markdown":
         content = render_markdown(report)

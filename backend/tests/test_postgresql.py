@@ -7,14 +7,17 @@ PostgreSQL service and ``RLAB_TEST_POSTGRES_URL``.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 from sqlalchemy import BigInteger, create_engine, inspect, text
 from sqlalchemy.orm import Session
 
-from reversing_lab.database.models import BinaryRecord
+from reversing_lab.config import get_settings
+from reversing_lab.database.models import BinaryAccessRecord, BinaryRecord
 from reversing_lab.database.repository import (
     AnnotationRepository,
+    BinaryRepository,
     BookmarkRepository,
     CtfWorkspaceRepository,
     ProjectRepository,
@@ -28,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_postgresql_schema_and_64_bit_repository_roundtrip() -> None:
+def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> None:
     engine = create_engine(_DATABASE_URL)
     inspector = inspect(engine)
     for table_name, column_name in (
@@ -46,7 +49,27 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip() -> None:
 
     with engine.connect() as connection:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-    assert revision == "0003_64_bit_values"
+    assert revision == "0004_resource_ownership"
+
+    for table_name in (
+        "projects",
+        "challenge_attempts",
+        "user_annotations",
+        "bookmarks",
+        "analysis_artifacts",
+        "analysis_jobs",
+        "memory_dumps",
+        "dynamic_analysis_runs",
+        "ctf_workspaces",
+    ):
+        columns = {
+            column["name"]: column for column in inspector.get_columns(table_name)
+        }
+        assert columns["owner_id"]["nullable"] is False
+    assert inspector.get_pk_constraint("binary_access")["constrained_columns"] == [
+        "owner_id",
+        "binary_sha256",
+    ]
 
     digest = "f" * 64
     virtual_address = 0x1_4000_1000
@@ -60,14 +83,30 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip() -> None:
                 storage_path=f"/isolated/{digest}",
             )
         )
+        session.flush()
+        session.add_all(
+            [
+                BinaryAccessRecord(
+                    owner_id=owner_id,
+                    binary_sha256=digest,
+                    filename="postgres-contract.elf",
+                )
+                for owner_id in ("analyst-one", "analyst-two")
+            ]
+        )
         session.commit()
 
-        annotation = AnnotationRepository(session).upsert(
+        annotation = AnnotationRepository(
+            session, "analyst-one", False
+        ).upsert(
             digest, virtual_address, "comment", "64-bit address"
         )
-        bookmark = BookmarkRepository(session).upsert(
+        bookmark = BookmarkRepository(session, "analyst-one", False).upsert(
             digest, virtual_address + 1, "entry", "PostgreSQL round-trip"
         )
+        second_annotation = AnnotationRepository(
+            session, "analyst-two", False
+        ).upsert(digest, virtual_address, "comment", "isolated overlay")
         projects = ProjectRepository(session)
         project = projects.create("PostgreSQL contract", owner_id="analyst-one")
         projects.add_sample(project.id, digest, owner_id="analyst-one")
@@ -89,7 +128,32 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip() -> None:
 
         assert annotation.address == virtual_address
         assert bookmark.address == virtual_address + 1
+        assert annotation.id != second_annotation.id
+        assert AnnotationRepository(session, "analyst-one", False).list(
+            digest
+        )[0].value == "64-bit address"
+        assert AnnotationRepository(session, "analyst-two", False).list(
+            digest
+        )[0].value == "isolated overlay"
         assert projects.sample_hashes(project.id, "analyst-one") == [digest]
         assert note.address == virtual_address + 2
+
+        settings = get_settings()
+        previous_storage = settings.storage_dir
+        settings.storage_dir = tmp_path / "postgres-storage"
+        try:
+            first_repo = BinaryRepository(session, "binary-owner-one", False)
+            first = first_repo.save(
+                b"postgresql binary grant contract", "owner-one.elf", "ELF"
+            )
+            second_repo = BinaryRepository(session, "binary-owner-two", False)
+            second = second_repo.save(
+                b"postgresql binary grant contract", "owner-two.elf", "ELF"
+            )
+            assert first.sha256 == second.sha256
+            assert first_repo.display_filename(first.sha256) == "owner-one.elf"
+            assert second_repo.display_filename(second.sha256) == "owner-two.elf"
+        finally:
+            settings.storage_dir = previous_storage
 
     engine.dispose()
