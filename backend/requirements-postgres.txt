@@ -1,0 +1,2 @@
+# Optional PostgreSQL driver. SQLite remains the zero-configuration development DB.
+psycopg[binary]>=3.1

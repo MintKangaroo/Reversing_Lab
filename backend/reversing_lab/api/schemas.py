@@ -14,6 +14,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 _FROM_ATTRS = ConfigDict(from_attributes=True)
+_MAX_DATABASE_INTEGER = 2**63 - 1
 
 
 class PrincipalSchema(BaseModel):
@@ -374,7 +375,7 @@ class DecompiledFunctionSchema(BaseModel):
 
 # --- Analyst overlays and projects -----------------------------------------------
 class AnnotationWriteSchema(BaseModel):
-    address: int = Field(ge=0)
+    address: int = Field(ge=0, le=_MAX_DATABASE_INTEGER)
     kind: Literal["function_name", "comment"]
     value: str = Field(min_length=1, max_length=8_192)
 
@@ -392,7 +393,7 @@ class AnnotationSchema(BaseModel):
 
 
 class BookmarkWriteSchema(BaseModel):
-    address: int = Field(ge=0)
+    address: int = Field(ge=0, le=_MAX_DATABASE_INTEGER)
     label: str = Field(default="", max_length=160)
     note: str = Field(default="", max_length=8_192)
 
@@ -739,7 +740,9 @@ class CtfWorkspacePatchSchema(BaseModel):
 class CtfNoteCreateSchema(BaseModel):
     kind: Literal["note", "hypothesis", "address", "string", "bookmark", "hint"]
     content: str = Field(min_length=1, max_length=16_384)
-    address: int | None = Field(default=None, ge=0)
+    address: int | None = Field(
+        default=None, ge=0, le=_MAX_DATABASE_INTEGER
+    )
 
 
 class CtfNoteSchema(BaseModel):

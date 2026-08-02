@@ -139,10 +139,15 @@ verification before the follow-up hardening work was:
 - dependency audit: zero npm vulnerabilities;
 - Docker Compose configuration parsed successfully.
 
-Subsequent hardening added Alembic revisions, optional API-key roles, and project
-ownership. Remaining items are recorded in [ROADMAP.md](ROADMAP.md), including
-PostgreSQL CI, full resource ownership/OIDC, RetDec/r2ghidra, richer memory
-normalization, and a real VM-backed sandbox provider.
+Subsequent hardening added Alembic revisions, optional API-key roles, project
+ownership, and PostgreSQL 16 migration/repository contract CI. Remaining items are
+recorded in [ROADMAP.md](ROADMAP.md), including production database operations, full
+resource ownership/OIDC, RetDec/r2ghidra, richer memory normalization, and a real
+VM-backed sandbox provider.
 
 Follow-up verification on 2026-08-02: 104 backend tests and 10 frontend tests passed;
 the Vite production build and high-severity npm audit also passed.
+
+PostgreSQL follow-up on 2026-08-02: revision 0003 converted persisted sizes and virtual
+addresses to portable 64-bit columns. A PostgreSQL 16 container passed fresh upgrade,
+drift check, downgrade/re-upgrade, and high-address repository round-trip tests.

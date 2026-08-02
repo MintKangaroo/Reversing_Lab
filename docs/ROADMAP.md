@@ -11,12 +11,14 @@
 - disabled/mock dynamic provider and readiness UI;
 - persistent CTF workspace and report export;
 - Alembic baseline with conservative legacy SQLite bootstrap;
+- PostgreSQL 16 migration round-trip CI and 64-bit repository contract tests;
 - optional digest-backed bearer authentication, coarse roles, project ownership migration;
 - backend/frontend/security regression tests, CI, development containers.
 
 ## Near term
 
-1. PostgreSQL migration CI and subsequent revision upgrade/downgrade fixtures.
+1. PostgreSQL backup/restore rehearsal, TLS deployment guide, concurrency/load testing,
+   and production observability.
 2. OIDC/short-lived credentials, ownership for every resource, audit-event persistence,
    retention/deletion API, and server-side rate limiting.
 3. RetDec and r2ghidra adapters with the same process hardening contract.

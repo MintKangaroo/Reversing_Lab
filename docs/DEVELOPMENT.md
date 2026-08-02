@@ -61,9 +61,23 @@ pytest tests/test_migrations.py
 unversioned `create_all` database is stamped only after its table and column sets match
 a known revision; both the initial and pre-project-owner schemas are recognized.
 Partial or drifted schemas are rejected. Back up real data before stamping or upgrading.
-`init_db()` retains idempotent `create_all` behavior
-for local backward compatibility, but production startup should run the migration
-bootstrap first. PostgreSQL must be added to CI before claiming production support.
+`init_db()` retains idempotent `create_all` behavior for local backward compatibility,
+but production startup should run the migration bootstrap first.
+
+PostgreSQL development/contract checks require the optional driver:
+
+```bash
+pip install -r requirements-postgres.txt
+export RLAB_DATABASE_URL='postgresql+psycopg://user:password@127.0.0.1/reversing_lab'
+export RLAB_TEST_POSTGRES_URL="$RLAB_DATABASE_URL"
+alembic upgrade head
+alembic check
+pytest tests/test_postgresql.py
+```
+
+CI runs the same schema upgrade, drift check, full downgrade/re-upgrade, and repository
+contract against PostgreSQL 16. This verifies dialect portability; it does not replace
+deployment-specific backup/restore, HA, performance, TLS, or credential validation.
 
 ## Adding an adapter
 

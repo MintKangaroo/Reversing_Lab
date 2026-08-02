@@ -10,7 +10,7 @@ finding, 메모리 트리아지, 격리형 동적 분석 제어, CTF 노트와 �
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-104_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-105_passing-3fb950)
 ![Frontend tests](https://img.shields.io/badge/frontend_tests-10_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -170,8 +170,11 @@ FastAPI API ── optional auth / SQLAlchemy metadata
     └── content-addressed samples and compressed artifacts
 ```
 
-SQLite는 개발 환경에서 지원하며 Alembic이 schema를 관리합니다. 대용량 결과는 압축 artifact로
-저장하고 DB에는 index와 metadata만 보관합니다.
+SQLite는 기본 개발 데이터베이스이며 Alembic이 schema를 관리합니다. PostgreSQL 16도 migration
+왕복과 64비트 주소·크기 repository 계약을 CI에서 검증합니다. PostgreSQL을 사용할 때는
+`pip install -r backend/requirements-postgres.txt` 후 `RLAB_DATABASE_URL`을
+`postgresql+psycopg://...` 형식으로 설정하십시오. 대용량 결과는 압축 artifact로 저장하고
+DB에는 index와 metadata만 보관합니다.
 
 ## 테스트
 
@@ -180,16 +183,18 @@ cd backend && ../.venv/bin/pytest
 cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 기준은 backend 104개와 frontend 10개 테스트 통과, production build 성공, npm 취약점
-0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지 않습니다. CI는 Python 3.10/3.11,
-frontend build/audit, Alembic drift와 whitespace를 검사합니다.
+현재 기준은 SQLite backend 105개와 PostgreSQL 계약 1개, frontend 10개 테스트 통과,
+production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지
+않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend build/audit,
+Alembic drift와 whitespace를 검사합니다.
 
 ## 현재 제한
 
 - 실제 VM sandbox provider와 RetDec/r2ghidra adapter는 아직 구현되지 않았습니다.
 - Volatility 정규화는 process list 중심이며 module/handle/registry/network 모델은 확장 예정입니다.
 - 함수 경계, 타입, indirect control flow, pseudo-C는 휴리스틱이므로 수동 검증이 필요합니다.
-- PostgreSQL CI, 전체 resource ownership, OIDC, audit log와 retention API가 추가로 필요합니다.
+- PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 전체 resource ownership, OIDC,
+  audit log, retention API가 추가로 필요합니다.
 
 ## 문서와 로드맵
 

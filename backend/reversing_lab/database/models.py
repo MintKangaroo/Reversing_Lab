@@ -8,7 +8,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -28,7 +37,7 @@ class BinaryRecord(Base):
     sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     binary_format: Mapped[str] = mapped_column(String(16), nullable=False)
-    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
@@ -96,7 +105,7 @@ class UserAnnotationRecord(Base):
     binary_sha256: Mapped[str] = mapped_column(
         String(64), ForeignKey("binaries.sha256"), nullable=False, index=True
     )
-    address: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    address: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     value: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -119,7 +128,7 @@ class BookmarkRecord(Base):
     binary_sha256: Mapped[str] = mapped_column(
         String(64), ForeignKey("binaries.sha256"), nullable=False, index=True
     )
-    address: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    address: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     label: Mapped[str] = mapped_column(String(160), default="", nullable=False)
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -143,7 +152,7 @@ class AnalysisArtifactRecord(Base):
     )
     kind: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -180,7 +189,7 @@ class MemoryDumpRecord(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
-    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     dump_format: Mapped[str] = mapped_column(String(64), nullable=False)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     analysis_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
@@ -246,7 +255,9 @@ class CtfNoteRecord(Base):
     )
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    address: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    address: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )

@@ -88,8 +88,11 @@ and references. SQLite is the supported development database. The repository pat
 avoids SQLite-only query constructs. Alembic owns the baseline schema; a conservative
 bootstrap stamps an older `create_all` database only when every table and column
 matches a known revision. Revision 0002 adds nullable project ownership and safely
-upgrades the pre-ownership baseline. PostgreSQL deployment validation remains future
-work.
+upgrades the pre-ownership baseline. Revision 0003 uses portable 64-bit columns for
+binary/artifact/dump sizes and virtual addresses. CI validates fresh PostgreSQL 16
+upgrade, metadata drift, full downgrade/re-upgrade, and high-address repository
+round-trips. Backup/restore, high availability, and workload sizing remain deployment
+responsibilities rather than application-level guarantees.
 
 When API-key authentication is active, projects are owner-scoped for non-admin
 principals and admins can inspect all projects. The remaining resource repositories
@@ -119,7 +122,8 @@ Large UI tables use windowed rendering.
 ## Technology decisions
 
 - FastAPI/Pydantic preserve the existing API and OpenAPI surface.
-- SQLAlchemy repositories support SQLite now without binding services to it.
+- SQLAlchemy repositories are contract-tested against SQLite and PostgreSQL without
+  binding services to either dialect.
 - Capstone and LIEF remain the primary disassembly/parser dependencies.
 - a simple DB-backed thread runner fits local deployment; distributed queues can be
   added behind the runner interface later.
