@@ -47,6 +47,30 @@ def test_malformed_hash_and_path_traversal_are_not_resolved(api_client) -> None:
         assert response.status_code == 404
 
 
+def test_persisted_addresses_are_limited_to_signed_64_bit(api_client) -> None:
+    response = api_client.post(
+        "/api/binaries", files={"file": ("address.elf", sample_elf())}
+    )
+    sha256 = response.json()["sha256"]
+    invalid_address = 2**63
+
+    annotation = api_client.post(
+        f"/api/binaries/{sha256}/annotations",
+        json={
+            "address": invalid_address,
+            "kind": "comment",
+            "value": "outside PostgreSQL BIGINT",
+        },
+    )
+    bookmark = api_client.post(
+        f"/api/binaries/{sha256}/bookmarks",
+        json={"address": invalid_address, "label": "outside range"},
+    )
+
+    assert annotation.status_code == 422
+    assert bookmark.status_code == 422
+
+
 def test_upx_uses_fixed_non_shell_vector(
     tmp_path: Path, monkeypatch
 ) -> None:

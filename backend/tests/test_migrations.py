@@ -11,7 +11,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.orm import Session
 
-from reversing_lab.database.models import Base, BinaryRecord
+from reversing_lab.database.models import Base, BinaryRecord, UserAnnotationRecord
 from reversing_lab.database.migrate import bootstrap_database
 
 
@@ -47,14 +47,23 @@ def test_existing_create_all_database_can_be_stamped_without_data_loss(
     engine = create_engine(f"sqlite:///{database}")
     Base.metadata.create_all(engine)
     digest = "a" * 64
+    virtual_address = 0x1_4000_1000
     with Session(engine) as session:
         session.add(
             BinaryRecord(
                 sha256=digest,
                 filename="existing.elf",
                 binary_format="ELF",
-                size=16,
+                size=3_000_000_000,
                 storage_path=f"data/binaries/{digest}",
+            )
+        )
+        session.add(
+            UserAnnotationRecord(
+                binary_sha256=digest,
+                address=virtual_address,
+                kind="comment",
+                value="preserve a high virtual address",
             )
         )
         session.commit()
@@ -69,6 +78,14 @@ def test_existing_create_all_database_can_be_stamped_without_data_loss(
         )
         assert preserved is not None
         assert preserved.filename == "existing.elf"
+        assert preserved.size == 3_000_000_000
+        annotation = session.scalar(
+            select(UserAnnotationRecord).where(
+                UserAnnotationRecord.binary_sha256 == digest
+            )
+        )
+        assert annotation is not None
+        assert annotation.address == virtual_address
     assert inspect(engine).get_table_names().count("alembic_version") == 1
 
 
