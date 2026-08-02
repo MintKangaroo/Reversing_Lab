@@ -47,21 +47,32 @@ be logged, committed, or stored in `.env` files.
 
 ## Authorization semantics
 
-| Role | HTTP access | Project visibility |
+| Role | HTTP access | Resource visibility |
 |---|---|---|
-| `viewer` | read-only methods | own projects only |
-| `analyst` | read and mutation methods | own projects only |
-| `admin` | read and mutation methods | all projects for audit/operations |
+| `viewer` | read-only methods | grants and resources for its principal ID |
+| `analyst` | read and mutation methods | grants and resources for its principal ID |
+| `admin` | read and mutation methods | all resources for audit/operations |
 
-Project creation records the authenticated principal as owner. A non-admin receives
-404, rather than existence disclosure, when requesting another owner's project.
-Legacy projects with no owner remain visible only to admins while authentication is
-enabled.
+Projects, annotations, bookmarks, artifacts, jobs, memory dumps, dynamic runs, CTF
+workspaces, and challenge attempts record the authenticated principal as owner. A
+non-admin receives 404, rather than existence disclosure, when requesting another
+owner's resource. CTF notes and project samples inherit their parent ownership.
 
-This is a coarse deployment control, not a complete multi-tenant authorization
-system. Binary samples, annotations/bookmarks, memory dumps, dynamic runs, jobs, CTF
-workspaces, artifacts, and reports currently remain in a shared authenticated
-catalog. Do not place mutually untrusted tenants in the same deployment.
+Binary bytes remain globally content-addressed so identical uploads occupy one physical
+file. `binary_access` stores a separate principal grant and display filename. Uploading
+the same bytes while authenticated grants only that principal access; knowing or
+guessing a SHA is insufficient. Existing data upgraded through revision 0004 is assigned
+to the `local` owner. Admins can audit it; another principal can acquire a binary grant
+by uploading the identical authorized sample.
+
+Multiple keys may use the same principal ID with different roles, for example a
+read-only `analyst-one:viewer` key and a mutation-capable `analyst-one:analyst` key.
+They intentionally share the same owner scope.
+
+This is an application-level owner boundary, not a complete hardened multi-tenant
+identity system. API keys are long-lived, admin access is global, and OIDC, centralized
+revocation, persistent audit events, retention workflows, and server-side rate limits
+are not yet implemented. Use separate deployments for strongly isolated tenants.
 
 ## Operational requirements
 
