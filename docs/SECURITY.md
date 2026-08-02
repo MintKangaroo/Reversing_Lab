@@ -64,7 +64,8 @@ contents or decoder input.
 - extend ownership enforcement to samples, annotations, dumps, runs, jobs, artifacts,
   reports, and CTF workspaces before serving mutually untrusted tenants;
 - terminate TLS at a trusted reverse proxy;
-- use the Alembic workflow, add PostgreSQL migration CI, and encrypt backups;
+- use the Alembic workflow and tested PostgreSQL migration path; rehearse restore and
+  encrypt database connections and backups;
 - isolate parser/external-tool workers with OS resource controls;
 - keep storage non-executable and mount it `noexec,nodev,nosuid`;
 - restrict outbound network and CORS origins;
