@@ -94,10 +94,18 @@ upgrade, metadata drift, full downgrade/re-upgrade, and high-address repository
 round-trips. Backup/restore, high availability, and workload sizing remain deployment
 responsibilities rather than application-level guarantees.
 
-When API-key authentication is active, projects are owner-scoped for non-admin
-principals and admins can inspect all projects. The remaining resource repositories
-are shared, so the auth layer is a coarse deployment control rather than a complete
-multi-tenant boundary.
+Revision 0004 adds per-principal binary access grants and non-null ownership for
+projects, annotations, bookmarks, artifacts, jobs, memory dumps, dynamic runs, CTF
+workspaces, and challenge attempts. Legacy rows are conservatively assigned to the
+`local` owner. Project samples and CTF notes inherit their parent scope. Repository
+dependencies apply the authenticated principal scope consistently; background workers
+use internal unrestricted repositories only after the request path has authorized the
+job/run/dump. Admins retain cross-owner operational access.
+
+Physical binary bytes remain deduplicated by SHA-256. The grant row owns the analyst's
+display filename, avoiding cross-owner filename leakage without duplicating content.
+This database boundary does not replace a mature identity provider, persistent audit
+trail, rate limiting, or deployment-level isolation.
 
 ## Analysis accuracy and provenance
 

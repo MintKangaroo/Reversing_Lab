@@ -10,7 +10,7 @@ finding, 메모리 트리아지, 격리형 동적 분석 제어, CTF 노트와 �
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-105_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-109_passing-3fb950)
 ![Frontend tests](https://img.shields.io/badge/frontend_tests-10_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -77,7 +77,7 @@ docker compose up --build
 | 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
 | 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
 | 저장·보고 | content-addressed storage, DB-backed jobs, JSON/Markdown/HTML export |
-| 운영 | Alembic migration, optional API-key roles, project ownership, resource limits |
+| 운영 | Alembic migration, optional API-key roles, resource ownership, resource limits |
 
 ## 로컬 개발 실행
 
@@ -126,8 +126,10 @@ export RLAB_AUTH_API_KEY_HASHES='{"<출력된 digest>":"analyst-one:analyst"}'
 ```
 
 역할은 읽기 전용 `viewer`, 변경 가능한 `analyst`, 전체 프로젝트를 감사할 수 있는 `admin`입니다.
-현재 프로젝트는 owner별로 격리되지만 binary/dump/run/job/CTF catalog는 인증 사용자 사이에
-공유되므로 완전한 multi-tenant 경계로 사용하면 안 됩니다.
+인증 모드에서는 binary grant와 annotation/bookmark/dump/run/job/CTF owner scope가 적용되며,
+권한이 없는 리소스는 404로 응답합니다. 동일 바이너리를 다른 사용자가 직접 다시 업로드하면
+물리 파일은 hash로 deduplicate하고 해당 사용자에게 별도 access grant와 표시 파일명을 만듭니다.
+admin은 운영 감사를 위해 전체 리소스를 볼 수 있습니다.
 [인증 문서](docs/AUTHENTICATION.md)에 운영 및 rotation 절차가 있습니다.
 
 ![Authentication gate](docs/screenshots/16-authentication.png)
@@ -183,7 +185,7 @@ cd backend && ../.venv/bin/pytest
 cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 기준은 SQLite backend 105개와 PostgreSQL 계약 1개, frontend 10개 테스트 통과,
+현재 기준은 SQLite backend 109개와 PostgreSQL 계약 1개, frontend 10개 테스트 통과,
 production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지
 않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend build/audit,
 Alembic drift와 whitespace를 검사합니다.
@@ -193,8 +195,8 @@ Alembic drift와 whitespace를 검사합니다.
 - 실제 VM sandbox provider와 RetDec/r2ghidra adapter는 아직 구현되지 않았습니다.
 - Volatility 정규화는 process list 중심이며 module/handle/registry/network 모델은 확장 예정입니다.
 - 함수 경계, 타입, indirect control flow, pseudo-C는 휴리스틱이므로 수동 검증이 필요합니다.
-- PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 전체 resource ownership, OIDC,
-  audit log, retention API가 추가로 필요합니다.
+- PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 OIDC, audit log, retention API,
+  server-side rate limiting이 추가로 필요합니다.
 
 ## 문서와 로드맵
 

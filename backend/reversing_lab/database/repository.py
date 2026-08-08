@@ -22,12 +22,14 @@ from ..errors import BinaryNotFoundError
 from .models import (
     AnalysisArtifactRecord,
     AnalysisJobRecord,
+    BinaryAccessRecord,
     BinaryRecord,
     BookmarkRecord,
     ChallengeAttempt,
     CtfNoteRecord,
     CtfWorkspaceRecord,
     DynamicAnalysisRunRecord,
+    DEFAULT_OWNER_ID,
     MemoryDumpRecord,
     ProjectRecord,
     ProjectSampleRecord,
@@ -38,11 +40,44 @@ logger = logging.getLogger(__name__)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
-class BinaryRepository:
+class _OwnedRepository:
+    """Shared principal scope for mutable repositories."""
+
+    def __init__(
+        self,
+        session: Session,
+        owner_id: str = DEFAULT_OWNER_ID,
+        unrestricted: bool = True,
+    ) -> None:
+        self._session = session
+        self._owner_id = owner_id
+        self._unrestricted = unrestricted
+
+    def _read_scope(self, statement, model):
+        if self._unrestricted:
+            return statement
+        return statement.where(model.owner_id == self._owner_id)
+
+    def _require_binary_access(self, sha256: str) -> None:
+        if self._session.get(BinaryRecord, sha256) is None:
+            raise BinaryNotFoundError(f"No binary with id {sha256!r}.")
+        if self._unrestricted:
+            return
+        key = {"owner_id": self._owner_id, "binary_sha256": sha256}
+        if self._session.get(BinaryAccessRecord, key) is None:
+            raise BinaryNotFoundError(f"No binary with id {sha256!r}.")
+
+
+class BinaryRepository(_OwnedRepository):
     """Stores binary bytes on disk (by content hash) and metadata in the database."""
 
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(
+        self,
+        session: Session,
+        owner_id: str = DEFAULT_OWNER_ID,
+        unrestricted: bool = True,
+    ) -> None:
+        super().__init__(session, owner_id, unrestricted)
         self._storage_dir: Path = get_settings().storage_dir
 
     def _path_for(self, sha256: str) -> Path:
@@ -55,6 +90,7 @@ class BinaryRepository:
         sha256 = hashlib.sha256(data).hexdigest()
         existing = self._session.get(BinaryRecord, sha256)
         if existing is not None:
+            self._grant_access(sha256, filename)
             return existing
 
         self._storage_dir.mkdir(parents=True, exist_ok=True)
@@ -69,15 +105,56 @@ class BinaryRepository:
             storage_path=str(path),
         )
         self._session.add(record)
+        # No ORM relationship links these records, so make the FK insertion order
+        # explicit for PostgreSQL instead of relying on unit-of-work sorting.
+        self._session.flush()
+        self._session.add(
+            BinaryAccessRecord(
+                owner_id=self._owner_id,
+                binary_sha256=sha256,
+                filename=filename,
+            )
+        )
         self._session.commit()
         logger.info("Stored binary %s (%s, %d bytes)", sha256[:12], binary_format, len(data))
         return record
+
+    def _grant_access(self, sha256: str, filename: str) -> None:
+        key = {"owner_id": self._owner_id, "binary_sha256": sha256}
+        access = self._session.get(BinaryAccessRecord, key)
+        if access is None:
+            self._session.add(BinaryAccessRecord(**key, filename=filename))
+        else:
+            access.filename = filename
+        self._session.commit()
+
+    def display_filename(self, sha256: str) -> str:
+        """Return the current principal's display name without leaking another owner's."""
+        key = {"owner_id": self._owner_id, "binary_sha256": sha256}
+        access = self._session.get(BinaryAccessRecord, key)
+        if access is not None:
+            return access.filename
+        return self.get(sha256).filename
 
     def get(self, sha256: str) -> BinaryRecord:
         """Return the record for ``sha256`` or raise :class:`BinaryNotFoundError`."""
         if _SHA256.fullmatch(sha256) is None:
             raise BinaryNotFoundError("Binary identifier must be a lowercase SHA-256.")
-        record = self._session.get(BinaryRecord, sha256)
+        if self._unrestricted:
+            record = self._session.get(BinaryRecord, sha256)
+        else:
+            stmt = (
+                select(BinaryRecord)
+                .join(
+                    BinaryAccessRecord,
+                    BinaryAccessRecord.binary_sha256 == BinaryRecord.sha256,
+                )
+                .where(
+                    BinaryRecord.sha256 == sha256,
+                    BinaryAccessRecord.owner_id == self._owner_id,
+                )
+            )
+            record = self._session.scalar(stmt)
         if record is None:
             raise BinaryNotFoundError(f"No binary with id {sha256!r}.")
         return record
@@ -95,19 +172,23 @@ class BinaryRepository:
 
     def list(self, limit: int = 100) -> list[BinaryRecord]:
         """Return the most recently uploaded binaries, newest first."""
-        stmt = select(BinaryRecord).order_by(BinaryRecord.created_at.desc()).limit(limit)
+        stmt = select(BinaryRecord)
+        if not self._unrestricted:
+            stmt = stmt.join(
+                BinaryAccessRecord,
+                BinaryAccessRecord.binary_sha256 == BinaryRecord.sha256,
+            ).where(BinaryAccessRecord.owner_id == self._owner_id)
+        stmt = stmt.order_by(BinaryRecord.created_at.desc()).limit(limit)
         return list(self._session.scalars(stmt))
 
 
-class ChallengeAttemptRepository:
+class ChallengeAttemptRepository(_OwnedRepository):
     """Append-only log of challenge submissions."""
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
 
     def record(self, challenge_slug: str, submission: str, correct: bool) -> ChallengeAttempt:
         """Persist a submission attempt and return it."""
         attempt = ChallengeAttempt(
+            owner_id=self._owner_id,
             challenge_slug=challenge_slug,
             submission=submission[:512],
             correct=correct,
@@ -118,19 +199,28 @@ class ChallengeAttemptRepository:
 
     def solved_slugs(self) -> set[str]:
         """Return the set of challenge slugs that have at least one correct attempt."""
-        stmt = select(ChallengeAttempt.challenge_slug).where(ChallengeAttempt.correct.is_(True))
+        stmt = select(ChallengeAttempt.challenge_slug).where(
+            ChallengeAttempt.correct.is_(True)
+        )
+        stmt = self._read_scope(stmt, ChallengeAttempt)
         return set(self._session.scalars(stmt))
 
 
-class ProjectRepository:
+class ProjectRepository(_OwnedRepository):
     """CRUD for analyst projects and their sample membership."""
 
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def _project_scope(self, owner_id: str | None) -> str | None:
+        if owner_id is not None:
+            return owner_id
+        return None if self._unrestricted else self._owner_id
 
     def create(
-        self, name: str, description: str = "", owner_id: str | None = None
+        self,
+        name: str,
+        description: str = "",
+        owner_id: str | None = None,
     ) -> ProjectRecord:
+        owner_id = owner_id or self._owner_id
         project = ProjectRecord(
             id=str(uuid4()), name=name, description=description, owner_id=owner_id
         )
@@ -141,6 +231,7 @@ class ProjectRepository:
     def list(
         self, limit: int = 100, owner_id: str | None = None
     ) -> list[ProjectRecord]:
+        owner_id = self._project_scope(owner_id)
         stmt = select(ProjectRecord)
         if owner_id is not None:
             stmt = stmt.where(ProjectRecord.owner_id == owner_id)
@@ -148,6 +239,7 @@ class ProjectRepository:
         return list(self._session.scalars(stmt))
 
     def get(self, project_id: str, owner_id: str | None = None) -> ProjectRecord:
+        owner_id = self._project_scope(owner_id)
         project = self._session.get(ProjectRecord, project_id)
         if project is None or (
             owner_id is not None and project.owner_id != owner_id
@@ -176,9 +268,17 @@ class ProjectRepository:
         binary_sha256: str,
         owner_id: str | None = None,
     ) -> ProjectSampleRecord:
+        owner_id = self._project_scope(owner_id)
         self.get(project_id, owner_id)
         if self._session.get(BinaryRecord, binary_sha256) is None:
             raise BinaryNotFoundError(f"No binary with id {binary_sha256!r}.")
+        if owner_id is not None:
+            access_key = {
+                "owner_id": owner_id,
+                "binary_sha256": binary_sha256,
+            }
+            if self._session.get(BinaryAccessRecord, access_key) is None:
+                raise BinaryNotFoundError(f"No binary with id {binary_sha256!r}.")
         key = {"project_id": project_id, "binary_sha256": binary_sha256}
         existing = self._session.get(ProjectSampleRecord, key)
         if existing is not None:
@@ -200,20 +300,19 @@ class ProjectRepository:
         return list(self._session.scalars(stmt))
 
 
-class AnnotationRepository:
+class AnnotationRepository(_OwnedRepository):
     """Persistent analyst overlays, kept separate from immutable analysis."""
 
     _ALLOWED_KINDS = {"function_name", "comment"}
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
 
     def upsert(
         self, binary_sha256: str, address: int, kind: str, value: str
     ) -> UserAnnotationRecord:
         if kind not in self._ALLOWED_KINDS:
             raise ValueError(f"Unsupported annotation kind: {kind!r}.")
+        self._require_binary_access(binary_sha256)
         stmt = select(UserAnnotationRecord).where(
+            UserAnnotationRecord.owner_id == self._owner_id,
             UserAnnotationRecord.binary_sha256 == binary_sha256,
             UserAnnotationRecord.address == address,
             UserAnnotationRecord.kind == kind,
@@ -221,6 +320,7 @@ class AnnotationRepository:
         record = self._session.scalar(stmt)
         if record is None:
             record = UserAnnotationRecord(
+                owner_id=self._owner_id,
                 binary_sha256=binary_sha256,
                 address=address,
                 kind=kind,
@@ -238,27 +338,28 @@ class AnnotationRepository:
         stmt = select(UserAnnotationRecord).where(
             UserAnnotationRecord.binary_sha256 == binary_sha256
         )
+        stmt = self._read_scope(stmt, UserAnnotationRecord)
         if address is not None:
             stmt = stmt.where(UserAnnotationRecord.address == address)
         return list(self._session.scalars(stmt.order_by(UserAnnotationRecord.address)))
 
 
-class BookmarkRepository:
+class BookmarkRepository(_OwnedRepository):
     """CRUD for sample address bookmarks."""
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
 
     def upsert(
         self, binary_sha256: str, address: int, label: str, note: str
     ) -> BookmarkRecord:
+        self._require_binary_access(binary_sha256)
         stmt = select(BookmarkRecord).where(
+            BookmarkRecord.owner_id == self._owner_id,
             BookmarkRecord.binary_sha256 == binary_sha256,
             BookmarkRecord.address == address,
         )
         record = self._session.scalar(stmt)
         if record is None:
             record = BookmarkRecord(
+                owner_id=self._owner_id,
                 binary_sha256=binary_sha256,
                 address=address,
                 label=label,
@@ -277,24 +378,30 @@ class BookmarkRepository:
             .where(BookmarkRecord.binary_sha256 == binary_sha256)
             .order_by(BookmarkRecord.address)
         )
+        stmt = self._read_scope(stmt, BookmarkRecord)
         return list(self._session.scalars(stmt))
 
     def delete(self, binary_sha256: str, address: int) -> bool:
-        result = self._session.execute(
-            delete(BookmarkRecord).where(
-                BookmarkRecord.binary_sha256 == binary_sha256,
-                BookmarkRecord.address == address,
-            )
+        statement = delete(BookmarkRecord).where(
+            BookmarkRecord.owner_id == self._owner_id,
+            BookmarkRecord.binary_sha256 == binary_sha256,
+            BookmarkRecord.address == address,
         )
+        result = self._session.execute(statement)
         self._session.commit()
         return bool(result.rowcount)
 
 
-class ArtifactRepository:
+class ArtifactRepository(_OwnedRepository):
     """Store derived bytes by their own hash and index metadata in SQL."""
 
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(
+        self,
+        session: Session,
+        owner_id: str = DEFAULT_OWNER_ID,
+        unrestricted: bool = True,
+    ) -> None:
+        super().__init__(session, owner_id, unrestricted)
         self._storage_dir = get_settings().storage_dir.parent / "artifacts"
 
     def save(
@@ -304,8 +411,10 @@ class ArtifactRepository:
         data: bytes,
         metadata: dict[str, object] | None = None,
     ) -> AnalysisArtifactRecord:
+        self._require_binary_access(binary_sha256)
         content_sha256 = hashlib.sha256(data).hexdigest()
         stmt = select(AnalysisArtifactRecord).where(
+            AnalysisArtifactRecord.owner_id == self._owner_id,
             AnalysisArtifactRecord.binary_sha256 == binary_sha256,
             AnalysisArtifactRecord.kind == kind,
             AnalysisArtifactRecord.content_sha256 == content_sha256,
@@ -319,6 +428,7 @@ class ArtifactRepository:
             path.write_bytes(data)
         record = AnalysisArtifactRecord(
             id=str(uuid4()),
+            owner_id=self._owner_id,
             binary_sha256=binary_sha256,
             kind=kind,
             content_sha256=content_sha256,
@@ -336,18 +446,17 @@ class ArtifactRepository:
             .where(AnalysisArtifactRecord.binary_sha256 == binary_sha256)
             .order_by(AnalysisArtifactRecord.created_at.desc())
         )
+        stmt = self._read_scope(stmt, AnalysisArtifactRecord)
         return list(self._session.scalars(stmt))
 
 
-class JobRepository:
+class JobRepository(_OwnedRepository):
     """State transitions for DB-backed analysis jobs."""
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
 
     def create(self, kind: str, target_id: str) -> AnalysisJobRecord:
         record = AnalysisJobRecord(
             id=str(uuid4()),
+            owner_id=self._owner_id,
             kind=kind,
             target_id=target_id,
             state="queued",
@@ -359,7 +468,9 @@ class JobRepository:
         return record
 
     def get(self, job_id: str) -> AnalysisJobRecord:
-        record = self._session.get(AnalysisJobRecord, job_id)
+        stmt = select(AnalysisJobRecord).where(AnalysisJobRecord.id == job_id)
+        stmt = self._read_scope(stmt, AnalysisJobRecord)
+        record = self._session.scalar(stmt)
         if record is None:
             raise BinaryNotFoundError(f"No analysis job with id {job_id!r}.")
         return record
@@ -370,6 +481,7 @@ class JobRepository:
             .order_by(AnalysisJobRecord.created_at.desc())
             .limit(limit)
         )
+        stmt = self._read_scope(stmt, AnalysisJobRecord)
         return list(self._session.scalars(stmt))
 
     def update(
@@ -413,17 +525,25 @@ class JobRepository:
         return record
 
 
-class MemoryDumpRepository:
+class MemoryDumpRepository(_OwnedRepository):
     """Store memory dumps and compressed result references."""
 
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(
+        self,
+        session: Session,
+        owner_id: str = DEFAULT_OWNER_ID,
+        unrestricted: bool = True,
+    ) -> None:
+        super().__init__(session, owner_id, unrestricted)
         self._storage_dir = get_settings().storage_dir.parent / "memory"
         self._artifact_dir = get_settings().storage_dir.parent / "memory-artifacts"
 
     def save(self, data: bytes, filename: str, dump_format: str) -> MemoryDumpRecord:
         sha256 = hashlib.sha256(data).hexdigest()
-        stmt = select(MemoryDumpRecord).where(MemoryDumpRecord.sha256 == sha256)
+        stmt = select(MemoryDumpRecord).where(
+            MemoryDumpRecord.owner_id == self._owner_id,
+            MemoryDumpRecord.sha256 == sha256,
+        )
         existing = self._session.scalar(stmt)
         if existing is not None:
             return existing
@@ -432,6 +552,7 @@ class MemoryDumpRepository:
         path.write_bytes(data)
         record = MemoryDumpRecord(
             id=str(uuid4()),
+            owner_id=self._owner_id,
             sha256=sha256,
             filename=filename,
             size=len(data),
@@ -443,7 +564,9 @@ class MemoryDumpRepository:
         return record
 
     def get(self, dump_id: str) -> MemoryDumpRecord:
-        record = self._session.get(MemoryDumpRecord, dump_id)
+        stmt = select(MemoryDumpRecord).where(MemoryDumpRecord.id == dump_id)
+        stmt = self._read_scope(stmt, MemoryDumpRecord)
+        record = self._session.scalar(stmt)
         if record is None:
             raise BinaryNotFoundError(f"No memory dump with id {dump_id!r}.")
         return record
@@ -463,11 +586,16 @@ class MemoryDumpRepository:
         return record
 
 
-class DynamicRunRepository:
+class DynamicRunRepository(_OwnedRepository):
     """Persist dynamic-run policy and compressed event artifact references."""
 
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    def __init__(
+        self,
+        session: Session,
+        owner_id: str = DEFAULT_OWNER_ID,
+        unrestricted: bool = True,
+    ) -> None:
+        super().__init__(session, owner_id, unrestricted)
         self._artifact_dir = get_settings().storage_dir.parent / "dynamic-artifacts"
 
     def create(
@@ -478,8 +606,10 @@ class DynamicRunRepository:
         provider: str,
         policy: dict[str, object],
     ) -> DynamicAnalysisRunRecord:
+        self._require_binary_access(binary_sha256)
         record = DynamicAnalysisRunRecord(
             id=run_id,
+            owner_id=self._owner_id,
             job_id=job_id,
             binary_sha256=binary_sha256,
             provider=provider,
@@ -490,11 +620,16 @@ class DynamicRunRepository:
         return record
 
     def get(self, run_id: str) -> DynamicAnalysisRunRecord:
-        record = self._session.get(DynamicAnalysisRunRecord, run_id)
+        stmt = select(DynamicAnalysisRunRecord).where(
+            DynamicAnalysisRunRecord.id == run_id
+        )
+        stmt = self._read_scope(stmt, DynamicAnalysisRunRecord)
+        record = self._session.scalar(stmt)
         if record is None:
             stmt = select(DynamicAnalysisRunRecord).where(
                 DynamicAnalysisRunRecord.job_id == run_id
             )
+            stmt = self._read_scope(stmt, DynamicAnalysisRunRecord)
             record = self._session.scalar(stmt)
         if record is None:
             raise BinaryNotFoundError(f"No dynamic analysis run with id {run_id!r}.")
@@ -512,11 +647,8 @@ class DynamicRunRepository:
         return record
 
 
-class CtfWorkspaceRepository:
+class CtfWorkspaceRepository(_OwnedRepository):
     """CRUD for CTF investigation state and notes."""
-
-    def __init__(self, session: Session) -> None:
-        self._session = session
 
     def create(
         self,
@@ -527,10 +659,11 @@ class CtfWorkspaceRepository:
         binary_sha256: str | None,
         checklist: dict[str, bool],
     ) -> CtfWorkspaceRecord:
-        if binary_sha256 and self._session.get(BinaryRecord, binary_sha256) is None:
-            raise BinaryNotFoundError(f"No binary with id {binary_sha256!r}.")
+        if binary_sha256:
+            self._require_binary_access(binary_sha256)
         record = CtfWorkspaceRecord(
             id=str(uuid4()),
+            owner_id=self._owner_id,
             title=title,
             description=description,
             category=category,
@@ -543,7 +676,11 @@ class CtfWorkspaceRepository:
         return record
 
     def get(self, workspace_id: str) -> CtfWorkspaceRecord:
-        record = self._session.get(CtfWorkspaceRecord, workspace_id)
+        stmt = select(CtfWorkspaceRecord).where(
+            CtfWorkspaceRecord.id == workspace_id
+        )
+        stmt = self._read_scope(stmt, CtfWorkspaceRecord)
+        record = self._session.scalar(stmt)
         if record is None:
             raise BinaryNotFoundError(f"No CTF workspace with id {workspace_id!r}.")
         return record
@@ -554,10 +691,14 @@ class CtfWorkspaceRepository:
             .order_by(CtfWorkspaceRecord.updated_at.desc())
             .limit(limit)
         )
+        stmt = self._read_scope(stmt, CtfWorkspaceRecord)
         return list(self._session.scalars(stmt))
 
     def update(self, workspace_id: str, values: dict[str, object]) -> CtfWorkspaceRecord:
         record = self.get(workspace_id)
+        linked_binary = values.get("binary_sha256")
+        if isinstance(linked_binary, str):
+            self._require_binary_access(linked_binary)
         scalar_fields = {"title", "description", "category", "difficulty", "binary_sha256"}
         json_fields = {
             "hypotheses": "hypotheses_json",

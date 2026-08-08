@@ -26,11 +26,13 @@ def authenticated_client(
     tokens = {
         "viewer": "viewer-local-test-token",
         "analyst": "analyst-local-test-token",
+        "analyst_two": "analyst-two-local-test-token",
         "admin": "admin-local-test-token",
     }
     principals = {
         _digest(tokens["viewer"]): "viewer-one:viewer",
         _digest(tokens["analyst"]): "analyst-one:analyst",
+        _digest(tokens["analyst_two"]): "analyst-two:analyst",
         _digest(tokens["admin"]): "admin-one:admin",
     }
     monkeypatch.setenv("RLAB_DATABASE_URL", f"sqlite:///{tmp_path / 'auth.db'}")
@@ -104,6 +106,7 @@ def test_viewer_is_read_only_and_analyst_can_upload(authenticated_client) -> Non
     client, tokens = authenticated_client
     viewer = _authorization(tokens["viewer"])
     analyst = _authorization(tokens["analyst"])
+    admin = _authorization(tokens["admin"])
 
     denied = client.post(
         "/api/binaries",
@@ -118,9 +121,179 @@ def test_viewer_is_read_only_and_analyst_can_upload(authenticated_client) -> Non
         files={"file": ("fixture.elf", sample_elf())},
     )
     assert uploaded.status_code == 201, uploaded.text
-    listing = client.get("/api/binaries", headers=viewer)
-    assert listing.status_code == 200
-    assert listing.json()[0]["sha256"] == uploaded.json()["sha256"]
+    assert client.get("/api/binaries", headers=viewer).json() == []
+    assert client.get("/api/binaries", headers=analyst).json()[0][
+        "sha256"
+    ] == uploaded.json()["sha256"]
+    assert client.get("/api/binaries", headers=admin).json()[0][
+        "sha256"
+    ] == uploaded.json()["sha256"]
+
+
+def test_binary_grants_and_analyst_overlays_are_owner_scoped(
+    authenticated_client,
+) -> None:
+    client, tokens = authenticated_client
+    analyst_one = _authorization(tokens["analyst"])
+    analyst_two = _authorization(tokens["analyst_two"])
+    data = sample_elf()
+
+    first = client.post(
+        "/api/binaries",
+        headers=analyst_one,
+        files={"file": ("first.elf", data)},
+    )
+    sha256 = first.json()["sha256"]
+    assert client.get(
+        f"/api/binaries/{sha256}/info", headers=analyst_two
+    ).status_code == 404
+
+    second = client.post(
+        "/api/binaries",
+        headers=analyst_two,
+        files={"file": ("same-content.elf", data)},
+    )
+    assert second.json()["sha256"] == sha256
+    assert first.json()["filename"] == "first.elf"
+    assert second.json()["filename"] == "same-content.elf"
+    assert client.get("/api/binaries", headers=analyst_one).json()[0][
+        "filename"
+    ] == "first.elf"
+    assert client.get("/api/binaries", headers=analyst_two).json()[0][
+        "filename"
+    ] == "same-content.elf"
+    assert client.get(
+        f"/api/binaries/{sha256}/info", headers=analyst_two
+    ).status_code == 200
+
+    second_report = client.get(
+        f"/api/binaries/{sha256}/report?format=json", headers=analyst_two
+    )
+    assert second_report.json()["sample_metadata"]["filename"] == "same-content.elf"
+
+    renamed = client.post(
+        f"/api/binaries/{sha256}/annotations",
+        headers=analyst_one,
+        json={
+            "address": 0x401000,
+            "kind": "function_name",
+            "value": "analyst_one_entry",
+        },
+    )
+    assert renamed.status_code == 200
+    client.post(
+        f"/api/binaries/{sha256}/bookmarks",
+        headers=analyst_one,
+        json={"address": 0x401000, "label": "private lead"},
+    )
+    assert client.get(
+        f"/api/binaries/{sha256}/annotations", headers=analyst_two
+    ).json() == []
+    assert client.get(
+        f"/api/binaries/{sha256}/bookmarks", headers=analyst_two
+    ).json() == []
+
+    second_name = client.post(
+        f"/api/binaries/{sha256}/annotations",
+        headers=analyst_two,
+        json={
+            "address": 0x401000,
+            "kind": "function_name",
+            "value": "analyst_two_entry",
+        },
+    )
+    assert second_name.status_code == 200
+    assert client.get(
+        f"/api/binaries/{sha256}/annotations", headers=analyst_one
+    ).json()[0]["value"] == "analyst_one_entry"
+    assert client.get(
+        f"/api/binaries/{sha256}/annotations", headers=analyst_two
+    ).json()[0]["value"] == "analyst_two_entry"
+
+
+def test_ctf_memory_and_jobs_are_owner_scoped(authenticated_client) -> None:
+    client, tokens = authenticated_client
+    analyst_one = _authorization(tokens["analyst"])
+    analyst_two = _authorization(tokens["analyst_two"])
+    admin = _authorization(tokens["admin"])
+
+    uploaded = client.post(
+        "/api/binaries",
+        headers=analyst_one,
+        files={"file": ("owned.elf", sample_elf())},
+    )
+    workspace = client.post(
+        "/api/ctf-workspaces",
+        headers=analyst_one,
+        json={
+            "title": "Private investigation",
+            "binary_sha256": uploaded.json()["sha256"],
+        },
+    )
+    assert workspace.status_code == 201, workspace.text
+    workspace_id = workspace.json()["id"]
+    assert client.get(
+        f"/api/ctf-workspaces/{workspace_id}", headers=analyst_two
+    ).status_code == 404
+    assert client.get(
+        f"/api/ctf-workspaces/{workspace_id}", headers=admin
+    ).status_code == 200
+
+    memory = client.post(
+        "/api/memory-dumps",
+        headers=analyst_one,
+        files={"file": ("private.raw", b"authorized-memory-buffer")},
+    )
+    assert memory.status_code == 201, memory.text
+    dump_id = memory.json()["id"]
+    assert client.get(
+        f"/api/memory-dumps/{dump_id}", headers=analyst_two
+    ).status_code == 404
+    started = client.post(
+        f"/api/memory-dumps/{dump_id}/analysis",
+        headers=analyst_one,
+        json={"use_volatility": False},
+    )
+    assert started.status_code == 202, started.text
+    job_id = started.json()["id"]
+    assert client.get(f"/api/jobs/{job_id}", headers=analyst_two).status_code == 404
+    assert client.get(
+        f"/api/jobs/{job_id}/stream", headers=analyst_two
+    ).status_code == 404
+    assert client.get(f"/api/jobs/{job_id}", headers=admin).status_code == 200
+
+
+def test_project_cannot_link_an_ungranted_sample(authenticated_client) -> None:
+    client, tokens = authenticated_client
+    analyst_one = _authorization(tokens["analyst"])
+    analyst_two = _authorization(tokens["analyst_two"])
+    data = sample_elf()
+    sha256 = client.post(
+        "/api/binaries",
+        headers=analyst_one,
+        files={"file": ("owner-one.elf", data)},
+    ).json()["sha256"]
+    project_id = client.post(
+        "/api/projects",
+        headers=analyst_two,
+        json={"name": "Second analyst project"},
+    ).json()["id"]
+
+    denied = client.post(
+        f"/api/projects/{project_id}/samples/{sha256}", headers=analyst_two
+    )
+    assert denied.status_code == 404
+
+    client.post(
+        "/api/binaries",
+        headers=analyst_two,
+        files={"file": ("authorized-copy.elf", data)},
+    )
+    granted = client.post(
+        f"/api/projects/{project_id}/samples/{sha256}", headers=analyst_two
+    )
+    assert granted.status_code == 200
+    assert granted.json()["sample_sha256"] == [sha256]
 
 
 def test_disabled_auth_remains_backward_compatible(api_client) -> None:

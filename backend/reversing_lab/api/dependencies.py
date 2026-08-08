@@ -20,6 +20,12 @@ from ..database import (
     ProjectRepository,
 )
 from ..database.session import get_session_factory
+from .auth import Principal, get_current_principal, resource_scope
+
+
+def _owned(repository_type, session: Session, principal: Principal):
+    owner_id, unrestricted = resource_scope(principal)
+    return repository_type(session, owner_id, unrestricted)
 
 
 def get_db() -> Iterator[Session]:
@@ -31,45 +37,73 @@ def get_db() -> Iterator[Session]:
         session.close()
 
 
-def get_binary_repository(session: Session = Depends(get_db)) -> BinaryRepository:
+def get_binary_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> BinaryRepository:
     """Provide a :class:`BinaryRepository` bound to the request session."""
-    return BinaryRepository(session)
+    return _owned(BinaryRepository, session, principal)
 
 
-def get_attempt_repository(session: Session = Depends(get_db)) -> ChallengeAttemptRepository:
+def get_attempt_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> ChallengeAttemptRepository:
     """Provide a :class:`ChallengeAttemptRepository` bound to the request session."""
-    return ChallengeAttemptRepository(session)
+    return _owned(ChallengeAttemptRepository, session, principal)
 
 
-def get_project_repository(session: Session = Depends(get_db)) -> ProjectRepository:
-    return ProjectRepository(session)
+def get_project_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> ProjectRepository:
+    return _owned(ProjectRepository, session, principal)
 
 
-def get_annotation_repository(session: Session = Depends(get_db)) -> AnnotationRepository:
-    return AnnotationRepository(session)
+def get_annotation_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> AnnotationRepository:
+    return _owned(AnnotationRepository, session, principal)
 
 
-def get_bookmark_repository(session: Session = Depends(get_db)) -> BookmarkRepository:
-    return BookmarkRepository(session)
+def get_bookmark_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> BookmarkRepository:
+    return _owned(BookmarkRepository, session, principal)
 
 
-def get_artifact_repository(session: Session = Depends(get_db)) -> ArtifactRepository:
-    return ArtifactRepository(session)
+def get_artifact_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> ArtifactRepository:
+    return _owned(ArtifactRepository, session, principal)
 
 
-def get_job_repository(session: Session = Depends(get_db)) -> JobRepository:
-    return JobRepository(session)
+def get_job_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> JobRepository:
+    return _owned(JobRepository, session, principal)
 
 
-def get_memory_dump_repository(session: Session = Depends(get_db)) -> MemoryDumpRepository:
-    return MemoryDumpRepository(session)
+def get_memory_dump_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> MemoryDumpRepository:
+    return _owned(MemoryDumpRepository, session, principal)
 
 
-def get_dynamic_run_repository(session: Session = Depends(get_db)) -> DynamicRunRepository:
-    return DynamicRunRepository(session)
+def get_dynamic_run_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> DynamicRunRepository:
+    return _owned(DynamicRunRepository, session, principal)
 
 
 def get_ctf_workspace_repository(
     session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
 ) -> CtfWorkspaceRepository:
-    return CtfWorkspaceRepository(session)
+    return _owned(CtfWorkspaceRepository, session, principal)

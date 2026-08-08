@@ -7,8 +7,8 @@ import json
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
-from ...database import CtfWorkspaceRepository
-from ..dependencies import get_ctf_workspace_repository
+from ...database import BinaryRepository, CtfWorkspaceRepository
+from ..dependencies import get_binary_repository, get_ctf_workspace_repository
 from ..schemas import (
     CtfNoteCreateSchema,
     CtfNoteSchema,
@@ -71,7 +71,10 @@ def list_ctf_workspaces(
 def create_ctf_workspace(
     payload: CtfWorkspaceCreateSchema,
     repository: CtfWorkspaceRepository = Depends(get_ctf_workspace_repository),
+    binaries: BinaryRepository = Depends(get_binary_repository),
 ) -> CtfWorkspaceSchema:
+    if payload.binary_sha256 is not None:
+        binaries.get(payload.binary_sha256)
     record = repository.create(
         payload.title,
         payload.description,
@@ -96,7 +99,10 @@ def patch_ctf_workspace(
     workspace_id: str,
     payload: CtfWorkspacePatchSchema,
     repository: CtfWorkspaceRepository = Depends(get_ctf_workspace_repository),
+    binaries: BinaryRepository = Depends(get_binary_repository),
 ) -> CtfWorkspaceSchema:
+    if payload.binary_sha256 is not None:
+        binaries.get(payload.binary_sha256)
     record = repository.update(
         workspace_id, payload.model_dump(exclude_unset=True)
     )

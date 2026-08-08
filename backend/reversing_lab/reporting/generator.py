@@ -54,6 +54,7 @@ def build_report(
     functions,
     annotations,
     bookmarks,
+    display_filename: str | None = None,
 ) -> dict[str, object]:
     """Build the canonical report dictionary without executing the sample."""
     packing = detect_packing(info, data)
@@ -124,11 +125,12 @@ def build_report(
         "Use an isolated VM-backed provider for any authorized dynamic analysis."
     )
 
+    filename = display_filename or record.filename
     return {
         "schema_version": "1.0",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "executive_summary": {
-            "sample": record.filename,
+            "sample": filename,
             "format": info.binary_format,
             "architecture": info.architecture,
             "likely_packed": packing.likely_packed,
@@ -140,7 +142,7 @@ def build_report(
             ),
         },
         "sample_metadata": {
-            "filename": record.filename,
+            "filename": filename,
             "file_size": info.file_size,
             "format": info.binary_format,
             "architecture": info.architecture,

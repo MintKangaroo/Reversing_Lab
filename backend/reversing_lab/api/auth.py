@@ -78,3 +78,10 @@ def get_current_principal(request: Request) -> Principal:
     if not isinstance(principal, Principal):
         raise HTTPException(status_code=500, detail="Authentication context is missing.")
     return principal
+
+
+def resource_scope(principal: Principal) -> tuple[str, bool]:
+    """Return the persistence owner and whether cross-owner reads are allowed."""
+    if not principal.authentication_enabled:
+        return "local", True
+    return principal.id, principal.role == "admin"
