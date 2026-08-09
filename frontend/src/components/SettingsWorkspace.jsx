@@ -47,6 +47,7 @@ export function SettingsWorkspace({ principal = null }) {
   const [confirmation, setConfirmation] = useState('');
   const [purging, setPurging] = useState(false);
   const [purgeResult, setPurgeResult] = useState(null);
+  const [exportingAudit, setExportingAudit] = useState(false);
 
   useEffect(() => {
     Promise.all([api.tooling(), api.toolingConfiguration()])
@@ -91,6 +92,18 @@ export function SettingsWorkspace({ principal = null }) {
       setSecurityError(failure.message);
     } finally {
       setPurging(false);
+    }
+  }
+
+  async function exportAuditEvents() {
+    setExportingAudit(true);
+    setSecurityError(null);
+    try {
+      await api.downloadAuditExport();
+    } catch (failure) {
+      setSecurityError(failure.message);
+    } finally {
+      setExportingAudit(false);
     }
   }
 
@@ -145,9 +158,14 @@ export function SettingsWorkspace({ principal = null }) {
           <section className="settings-card audit-card">
             <div className="settings-card-heading">
               <div><span className="eyebrow">APPEND-ONLY METADATA</span><h2>Recent audit events</h2></div>
-              <span className="record-count">{auditPage?.total ?? 0} total</span>
+              <div className="audit-card-actions">
+                <span className="record-count">{auditPage?.total ?? 0} total</span>
+                <button className="btn secondary" type="button" disabled={exportingAudit || securityLoading || Boolean(securityError)} onClick={exportAuditEvents}>
+                  {exportingAudit ? 'Exporting…' : 'Export JSONL'}
+                </button>
+              </div>
             </div>
-            <p className="settings-help">Mutation metadata is recorded without request bodies, authorization headers, or decoder input.</p>
+            <p className="settings-help">Mutation metadata excludes bodies, authorization headers, and decoder input. JSONL exports include a verification hash chain for external archival.</p>
             <DataTable columns={AUDIT_COLUMNS} rows={auditPage?.items || []} emptyLabel="No mutation events recorded." />
           </section>
           <section className="settings-card retention-card">

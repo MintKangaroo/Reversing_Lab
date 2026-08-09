@@ -73,6 +73,15 @@ class Settings(BaseSettings):
         default=100_000,
         description="Hard cap on dynamic events accepted from a sandbox provider.",
     )
+    max_audit_export_records: int = Field(
+        default=100_000,
+        ge=1,
+        le=1_000_000,
+        description=(
+            "Maximum audit events in one streaming export; narrower time filters "
+            "are required above this bound."
+        ),
+    )
     max_analysis_seconds: float = Field(
         default=300.0,
         description="Default wall-clock limit for a background analysis job.",

@@ -567,6 +567,7 @@ class AnalysisLimitsSchema(BaseModel):
     max_strings: int
     max_yara_matches: int
     max_dynamic_events: int
+    max_audit_export_records: int
     max_analysis_seconds: float
     max_decompiler_seconds: float
     max_external_output_bytes: int

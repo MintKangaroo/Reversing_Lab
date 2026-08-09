@@ -165,3 +165,12 @@ and reference-safe file reclamation under configured roots. Verification passed 
 default backend tests plus the PostgreSQL 16 contract, 15 frontend tests, production
 build, Alembic drift/round-trip checks on both dialects, and a zero-vulnerability npm
 audit.
+
+Audit-export follow-up on 2026-08-09: a principal-scoped, bounded JSONL endpoint now
+streams canonical oldest-first events with a manifest, completeness footer, and
+export-time SHA-256 hash chain. UTC filters and a configurable preflight record cap
+prevent unbounded downloads. The Settings UI can download the export, while the trust
+model and external signed/WORM archival boundary are documented explicitly.
+Verification passed 118 default backend tests plus the PostgreSQL 16 repository
+contract, 16 frontend tests, the Vite production build, zero-vulnerability npm audit,
+and focused Ruff checks for the new exporter/route/tests.

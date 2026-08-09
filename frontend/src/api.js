@@ -118,6 +118,14 @@ export const api = {
     const query = new URLSearchParams(params);
     return request(`/audit-events${query.size ? `?${query}` : ''}`);
   },
+  downloadAuditExport: (params = {}) => {
+    const query = new URLSearchParams(params);
+    const day = new Date().toISOString().slice(0, 10);
+    return download(
+      `/audit-events/export${query.size ? `?${query}` : ''}`,
+      `audit-events-${day}.jsonl`,
+    );
+  },
   retentionPreview: (includeBinaryAccess = false) =>
     request(`/retention/preview?include_binary_access=${includeBinaryAccess}`),
   purgeRetention: (confirmation, includeBinaryAccess = false) =>

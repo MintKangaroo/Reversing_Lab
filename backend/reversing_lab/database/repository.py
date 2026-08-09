@@ -282,6 +282,78 @@ class AuditRepository:
         )
         return list(self._session.scalars(statement)), int(total or 0)
 
+    def export_count(
+        self,
+        *,
+        action: str | None = None,
+        resource_type: str | None = None,
+        outcome: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+    ) -> int:
+        filters = self._export_filters(
+            action=action,
+            resource_type=resource_type,
+            outcome=outcome,
+            created_after=created_after,
+            created_before=created_before,
+        )
+        total = self._session.scalar(
+            select(func.count()).select_from(AuditEventRecord).where(*filters)
+        )
+        return int(total or 0)
+
+    def iter_export(
+        self,
+        *,
+        limit: int,
+        action: str | None = None,
+        resource_type: str | None = None,
+        outcome: str | None = None,
+        created_after: datetime | None = None,
+        created_before: datetime | None = None,
+    ):
+        """Yield a stable oldest-first, bounded principal-scoped export."""
+        filters = self._export_filters(
+            action=action,
+            resource_type=resource_type,
+            outcome=outcome,
+            created_after=created_after,
+            created_before=created_before,
+        )
+        statement = (
+            select(AuditEventRecord)
+            .where(*filters)
+            .order_by(AuditEventRecord.created_at, AuditEventRecord.id)
+            .limit(limit)
+            .execution_options(yield_per=500, stream_results=True)
+        )
+        yield from self._session.scalars(statement)
+
+    def _export_filters(
+        self,
+        *,
+        action: str | None,
+        resource_type: str | None,
+        outcome: str | None,
+        created_after: datetime | None,
+        created_before: datetime | None,
+    ) -> list:
+        filters = []
+        if not self._unrestricted:
+            filters.append(AuditEventRecord.principal_id == self._principal_id)
+        if action is not None:
+            filters.append(AuditEventRecord.action == action)
+        if resource_type is not None:
+            filters.append(AuditEventRecord.resource_type == resource_type)
+        if outcome is not None:
+            filters.append(AuditEventRecord.outcome == outcome)
+        if created_after is not None:
+            filters.append(AuditEventRecord.created_at >= created_after)
+        if created_before is not None:
+            filters.append(AuditEventRecord.created_at < created_before)
+        return filters
+
 
 class ProjectRepository(_OwnedRepository):
     """CRUD for analyst projects and their sample membership."""

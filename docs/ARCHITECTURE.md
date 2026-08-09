@@ -128,6 +128,13 @@ built-in owned-data purge. They are append-only by repository/API convention, no
 cryptographically sealed or WORM-backed ledger; production deployments should export
 them to an independently controlled audit system.
 
+Audit export uses a dedicated streaming database session so it does not depend on
+framework-specific request-dependency cleanup timing. A count is checked against the
+configured hard cap before response creation, then a bounded oldest-first query emits
+manifest/event/footer JSONL. An export-time SHA-256 chain links canonical event records.
+The chain is portable integrity metadata, not proof that the source database was
+complete and not a substitute for an external signed/WORM trust anchor.
+
 ## Analysis accuracy and provenance
 
 Every derived result distinguishes:

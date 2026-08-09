@@ -105,6 +105,7 @@ def test_tooling_configuration_exposes_limits_without_paths(api_client) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["limits"]["max_upload_bytes"] > 0
+    assert body["limits"]["max_audit_export_records"] > 0
     assert body["sandbox_policy"]["network"] == "blocked"
     assert body["sandbox_policy"]["privileged"] is False
     assert body["authentication"] == {

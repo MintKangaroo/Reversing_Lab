@@ -43,6 +43,7 @@ are operator-controlled but still validated before sensitive use.
 | cross-user resource access | binary grants, owner-scoped repositories, inherited parent scope, 404 on mismatch | admin is globally trusted; authorization bugs remain possible |
 | filename metadata disclosure | per-grant display filenames; hash-only storage paths | admins can inspect global metadata for operations |
 | audit secret capture | body/header/query-free mutation metadata and route templates | database operators remain trusted; events are not cryptographically sealed |
+| exported audit modification | canonical JSONL hash chain and completeness footer | export-time chain has no external trust anchor; source DB can still be altered by an operator |
 | destructive cross-owner purge | current-principal repository scope, exact confirmation, active-job lock | operator backups/legal holds remain deployment duties |
 | unsafe file reclaim | reference checks and direct-child configured-root validation | filesystem races and secure-media erasure need deployment controls |
 | resource starvation | bounded jobs/results, cancellation | in-process runner is not a hard CPU isolation boundary |
