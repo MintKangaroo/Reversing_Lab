@@ -56,6 +56,10 @@ Memory module and region responses retain integer addresses and also include exa
 | POST / GET | `/memory-dumps`, `/memory-dumps/{id}` |
 | POST / GET | `/memory-dumps/{id}/analysis` |
 | GET | `/memory-dumps/{id}/processes`, `/modules`, `/regions`, `/network`, `/findings` |
+| POST | `/memory-dumps/{id}/regions/inspect` |
+| GET | `/memory-dumps/{id}/region-artifacts` |
+| GET | `/memory-dumps/{id}/region-artifacts/{artifact_id}` |
+| GET | `/memory-dumps/{id}/region-artifacts/{artifact_id}/hex`, `/disassembly`, `/download` |
 | GET | `/dynamic-analysis/readiness` |
 | POST | `/dynamic-analysis` |
 | GET / POST | `/dynamic-analysis/{run_id}`, `/cancel` |
@@ -65,6 +69,12 @@ Memory module and region responses retain integer addresses and also include exa
 `pid`, case-insensitive `protocol`/`state`, and bounded `keyword` filters. Filtering
 operates only on the already bounded result artifact and never becomes a plugin or CLI
 argument.
+
+Region inspection accepts only a normalized PID/start pair, `architecture=x86|x86_64`,
+and literal `acknowledged=true`. It returns a `memory-region-inspection` job. On
+completion, `result_ref` is the owner-scoped artifact ID. Hex pages are capped at 4 KiB
+and disassembly at 2,000 requested instructions in addition to the global instruction
+cap. The raw download name is server generated from the content hash.
 
 ## CTF, tools, and capabilities
 

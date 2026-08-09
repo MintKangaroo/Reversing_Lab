@@ -46,7 +46,8 @@ anchor or sign exports in an independently controlled system.
 ## Parsing and analysis controls
 
 Parsers wrap malformed library inputs in typed errors. Settings bound functions,
-instructions, graph nodes, strings, memory processes/modules/regions/network records/findings, events,
+instructions, graph nodes, strings, memory processes/modules/regions/network records/findings,
+explicit region bytes, events,
 output sizes, elapsed time, and concurrent jobs. A clean heuristic result is not a
 safety verdict.
 
@@ -60,6 +61,13 @@ external output is normalized as untrusted data and each result retains its prov
 RWX/private-executable VAD findings are heuristic and explicitly identify common JIT,
 instrumentation, and compatibility-layer false positives. UPX is explicit opt-in,
 never overwrites the original, and records both hashes and size/section changes.
+
+VAD extraction is a separate acknowledged job, never an automatic side effect of
+triage. PID/start must match stored Volatility evidence, architecture is enum-allowlisted,
+and the complete VAD must fit `RLAB_MAX_MEMORY_REGION_EXTRACT_BYTES`. Provider filenames
+cannot select a filesystem path. Extracted bytes are hash-addressed, owner-scoped,
+integrity-checked before each view/download, and reclaimed through the retention path.
+Capstone reads the artifact as data and never executes it.
 
 Network records are provider observations rather than IOC verdicts. Public remote
 addresses produce informational findings only. A wildcard listener is raised at low
@@ -81,7 +89,7 @@ a strong malware boundary; use a disposable VM worker for real malware. See
 
 Decoder playground input is transformed in-memory for the request and is not stored.
 Analyst notes are stored and HTML report output escapes them. Dynamic/memory bulk data
-uses compressed artifacts. Logs should contain identifiers and state, not raw sample
+uses compressed or content-addressed artifacts. Logs should contain identifiers and state, not raw sample
 contents or decoder input.
 
 Owned-data deletion is explicit and dry-run-first. Even an administrator can purge only

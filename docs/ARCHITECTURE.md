@@ -75,6 +75,11 @@ api → analysis/analyzer/disassembler/decompiler/memory/dynamic → parser.mode
    heuristic findings. Public endpoints remain informational observations, while only
    unattributed wildcard listeners receive a low-severity review signal.
 7. large results are gzip JSON artifacts, not one row per module/socket/string/region.
+8. region bytes are extracted only by an acknowledged exact VAD request. A second job
+   validates fixed Volatility output, stores bytes by SHA-256, and indexes ownership,
+   PID/range, architecture, provider, and size in `memory_region_artifacts`.
+9. bounded hex and Capstone views read the immutable region artifact as data; they do
+   not execute it or claim the bytes were observed executing.
 
 ### Dynamic analysis
 
@@ -157,7 +162,7 @@ Decompiler output is explicitly estimated C-like code, never claimed as original
 ## Performance controls
 
 Settings cap upload sizes, instructions, functions, CFG/call graph nodes, strings,
-YARA matches, memory processes/modules/regions/network records/findings, dynamic events, job
+YARA matches, memory processes/modules/regions/network records/findings, explicit region bytes, dynamic events, job
 concurrency, analysis/decompiler time, and external output. The API paginates
 functions, hex, memory processes/modules/regions/network records, and dynamic events.
 Large UI tables use windowed rendering.
@@ -171,7 +176,7 @@ Large UI tables use windowed rendering.
 - a simple DB-backed thread runner fits local deployment; distributed queues can be
   added behind the runner interface later.
 - no graph/editor/state library was added. SVG layouts, hooks, and hash routing keep
-  the production bundle small; current JS is about 71 KiB gzip.
+  the production bundle small; current JS is about 74 KiB gzip.
 - Vitest/Testing Library are development-only and do not enter the production bundle.
 
 ## Current extension seams

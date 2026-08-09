@@ -23,6 +23,8 @@ not asserted to be a valid or recoverable credential.
 3. Start analysis and monitor the bounded background job.
 4. Review **Processes**, **Modules**, **Regions**, **Network**, and **Findings**.
    Provider warnings show partial plugin failures without hiding successful results.
+5. To inspect bytes, select **Review** on one normalized VAD, choose x86 or x86-64,
+   acknowledge the separate-artifact action, then select **Extract & inspect**.
 
 Equivalent API flow:
 
@@ -36,6 +38,11 @@ GET  /api/memory-dumps/{id}/modules            paginated
 GET  /api/memory-dumps/{id}/regions            paginated
 GET  /api/memory-dumps/{id}/network            paginated and filtered
 GET  /api/memory-dumps/{id}/findings
+POST /api/memory-dumps/{id}/regions/inspect    exact PID/start + acknowledgement
+GET  /api/memory-dumps/{id}/region-artifacts
+GET  /api/memory-dumps/{id}/region-artifacts/{artifact_id}/hex
+GET  /api/memory-dumps/{id}/region-artifacts/{artifact_id}/disassembly
+GET  /api/memory-dumps/{id}/region-artifacts/{artifact_id}/download
 ```
 
 Results are compressed JSON artifacts rather than one database row per string, module,
@@ -69,6 +76,30 @@ Each plugin runs separately. Missing symbols or a malformed result from one plug
 recorded as a provider warning and does not discard successful sibling plugin output.
 API users cannot submit plugin names or raw CLI arguments.
 
+## Explicit region inspection
+
+Region extraction is never part of the automatic plugin plan. The POST request must
+identify a PID and start address that exactly match an already normalized
+`windows.vadinfo.VadInfo` record and must include `acknowledged: true`. The server then
+creates a cancellable background job using only these fixed plugin arguments:
+
+```text
+windows.vadinfo.VadInfo --pid <validated-int> --address <validated-int>
+  --dump --maxsize <server-limit>
+```
+
+The provider must return exactly the requested VAD. The output filename is treated as
+untrusted, reduced to a basename, resolved inside a private temporary directory, and
+checked for symlinks, expected size, and the configured byte cap. The validated bytes
+are moved to content-addressed storage; SQL stores owner, dump, PID, range, architecture,
+provider, size, and SHA-256 metadata. Repeated identical extraction reuses the artifact.
+
+Hex pages expose exact server-rendered virtual addresses. Capstone decodes only the
+stored bounded artifact as analyst-selected `x86` or `x86_64`; decoding does not execute
+the bytes and does not prove that the region ran. Raw download uses a server-generated
+hash filename. Region artifacts inherit dump ownership and are included in retention
+preview and safe file reclamation.
+
 Calls use a fixed argument vector, `shell=False`, a sanitized environment, a timeout,
 private temporary stdout/stderr files, and an external-output size cap. Normalized
 collections have independent limits:
@@ -79,6 +110,7 @@ RLAB_MAX_MEMORY_PROCESSES=10000
 RLAB_MAX_MEMORY_MODULES=50000
 RLAB_MAX_MEMORY_REGIONS=100000
 RLAB_MAX_MEMORY_NETWORK_RECORDS=50000
+RLAB_MAX_MEMORY_REGION_EXTRACT_BYTES=1048576
 RLAB_MAX_MEMORY_FINDINGS=1000
 RLAB_MAX_EXTERNAL_OUTPUT_BYTES=2097152
 ```
@@ -116,8 +148,11 @@ time, process ancestry, and other evidence.
 ## Known limitations
 
 - Minidumps currently receive metadata/basic triage, not the full Windows plugin plan.
-- Complete command-line coverage, thread details, handles, registry, YARA, region byte
-  export, and region disassembly are not yet normalized.
+- Complete command-line coverage, thread details, handles, registry, and YARA are not
+  yet normalized.
+- Region extraction currently supports only exact, complete Volatility VADs from
+  compatible Windows full dumps. Arbitrary partial ranges, minidumps, Linux/macOS
+  extraction, and architectures other than x86/x86-64 are unavailable.
 - Volatility output is provider-supplied evidence. Bounds prevent unbounded storage but
   cannot make a compromised external tool truthful.
 - The current in-process job runner is cancellation-aware between application steps,

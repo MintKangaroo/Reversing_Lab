@@ -8,7 +8,8 @@
 - evidence/provenance finding model, packing and obfuscation heuristics;
 - safe UPX and data-only decoder tools;
 - DB-backed jobs, memory triage, Volatility allowlist, normalized process tree/DLL/VAD/
-  network records, and evidenced RWX/private-executable/network review findings;
+  network records, evidenced review findings, and explicit bounded VAD hex/disassembly
+  artifacts;
 - disabled/mock dynamic provider and readiness UI;
 - persistent CTF workspace and report export;
 - Alembic baseline with conservative legacy SQLite bootstrap;
@@ -37,8 +38,7 @@
 
 - out-of-process parser/external-tool workers;
 - VM sandbox provider reference implementation with authenticated worker protocol;
-- Volatility handles, registry, YARA, region byte export, and bounded region
-  disassembly models;
+- Volatility handles, registry, YARA, and additional OS/architecture region providers;
 - YARA/FLOSS/capa adapters and normalized provenance;
 - detector plugin registry and curated fixture corpus;
 - scalable PostgreSQL job claiming and optional Celery/RQ adapter;

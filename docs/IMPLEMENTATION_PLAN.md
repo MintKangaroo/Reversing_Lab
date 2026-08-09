@@ -191,3 +191,11 @@ offset display, bounded filters, and conservative public-endpoint/listener findi
 available through the API and workbench. Verification passed 124 default backend tests
 (plus one PostgreSQL-only skip), 18 frontend tests, production build, zero-vulnerability
 npm audit, and focused Ruff checks.
+
+Region-inspection follow-up on 2026-08-09: analysts can explicitly extract one exact,
+normalized Windows VAD through fixed `VadInfo` arguments after acknowledgement. Revision
+0006 indexes owner-scoped, content-addressed region artifacts without storing bytes in
+database rows. The workbench provides bounded paged hex, analyst-selected x86/x86-64
+Capstone decoding, artifact download, provider/hash provenance, and execution caveats.
+Path traversal, malformed selection, unavailable provider, integrity, migration, API,
+and UI flows have dedicated safe-fixture tests.
