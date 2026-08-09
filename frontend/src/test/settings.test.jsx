@@ -7,6 +7,7 @@ vi.mock('../api.js', () => ({
     tooling: vi.fn(),
     toolingConfiguration: vi.fn(),
     auditEvents: vi.fn(),
+    downloadAuditExport: vi.fn(),
     retentionPreview: vi.fn(),
     purgeRetention: vi.fn(),
   },
@@ -74,6 +75,7 @@ beforeEach(() => {
   }]);
   api.toolingConfiguration.mockResolvedValue(configuration);
   api.auditEvents.mockResolvedValue(auditPage);
+  api.downloadAuditExport.mockResolvedValue(undefined);
   api.retentionPreview.mockResolvedValue(preview);
   api.purgeRetention.mockResolvedValue({
     principal_id: 'analyst-one',
@@ -93,6 +95,9 @@ it('renders audit metadata and requires the exact retention confirmation', async
   expect(screen.getByText('Inspecting configured tooling and limits…')).toBeVisible();
   expect(await screen.findByText('POST /api/binaries')).toBeVisible();
   expect(screen.getAllByText('analyst-one')).toHaveLength(2);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Export JSONL' }));
+  await waitFor(() => expect(api.downloadAuditExport).toHaveBeenCalledOnce());
 
   const purge = screen.getByRole('button', { name: 'Purge owned data' });
   const confirmation = screen.getByLabelText(/Type PURGE:analyst-one to confirm/);

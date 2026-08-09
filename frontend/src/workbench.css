@@ -803,6 +803,8 @@ a.btn.secondary { border-color: var(--border); background: var(--surface-2); }
 .settings-card-heading h2 { margin-top: 3px; }
 .settings-help { margin: 0 0 12px; color: var(--text-muted); line-height: 1.5; }
 .record-count { color: var(--text-faint); font: 9px var(--mono); white-space: nowrap; }
+.audit-card-actions { display: flex; align-items: center; gap: 8px; }
+.audit-card-actions .btn { padding: 5px 8px; font-size: 9px; white-space: nowrap; }
 .audit-card .table-scroll { max-height: 390px; }
 .audit-outcome { font: 700 8px var(--mono); text-transform: uppercase; }
 .outcome-succeeded { color: var(--green); }

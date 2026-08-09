@@ -7,6 +7,7 @@ function response({ ok = true, status = 200, statusText = 'OK', body = {}, type 
     statusText,
     headers: { get: () => type },
     json: async () => body,
+    blob: async () => new Blob([String(body)]),
   };
 }
 
@@ -70,5 +71,28 @@ describe('API client', () => {
       '/api/audit-events?limit=12&outcome=denied',
       {},
     );
+  });
+
+  it('downloads a filtered audit JSONL export', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({
+      body: '{"type":"footer","complete":true}',
+      type: 'application/x-ndjson',
+    }));
+    const createObjectURL = vi.fn().mockReturnValue('blob:audit-export');
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL });
+
+    await api.downloadAuditExport({ outcome: 'failed' });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/audit-events/export?outcome=failed',
+      {},
+    );
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:audit-export');
+    click.mockRestore();
   });
 });
