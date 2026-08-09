@@ -23,6 +23,8 @@ from ..schemas import (
     MemoryFindingSchema,
     MemoryModulePageSchema,
     MemoryModuleSchema,
+    MemoryNetworkArtifactPageSchema,
+    MemoryNetworkArtifactSchema,
     MemoryProcessPageSchema,
     MemoryProcessSchema,
     MemoryRegionPageSchema,
@@ -130,6 +132,7 @@ def memory_analysis_summary(
         process_count=len(payload.get("processes", [])),
         module_count=len(payload.get("modules", [])),
         region_count=len(payload.get("regions", [])),
+        network_count=len(payload.get("network", [])),
         string_count=len(payload.get("strings", [])),
         urls=payload.get("urls", []),
         ip_addresses=payload.get("ip_addresses", []),
@@ -185,6 +188,54 @@ def memory_regions(
     items = _result(repository.get(dump_id)).get("regions", [])
     return MemoryRegionPageSchema(
         items=[MemoryRegionSchema.model_validate(item) for item in items[offset : offset + limit]],
+        total=len(items),
+        offset=offset,
+        limit=limit,
+    )
+
+
+@router.get("/{dump_id}/network", response_model=MemoryNetworkArtifactPageSchema)
+def memory_network(
+    dump_id: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1_000),
+    pid: int | None = Query(default=None, ge=0, le=2**32 - 1),
+    protocol: str | None = Query(default=None, max_length=16),
+    state: str | None = Query(default=None, max_length=64),
+    keyword: str | None = Query(default=None, max_length=256),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> MemoryNetworkArtifactPageSchema:
+    items = _result(repository.get(dump_id)).get("network", [])
+    if pid is not None:
+        items = [item for item in items if item.get("pid") == pid]
+    if protocol:
+        expected = protocol.casefold()
+        items = [item for item in items if str(item.get("protocol", "")).casefold() == expected]
+    if state:
+        expected = state.casefold()
+        items = [item for item in items if str(item.get("state", "")).casefold() == expected]
+    if keyword:
+        expected = keyword.casefold()
+        items = [
+            item
+            for item in items
+            if expected
+            in " ".join(
+                str(item.get(field, ""))
+                for field in (
+                    "process_name",
+                    "local_address",
+                    "remote_address",
+                    "local_port",
+                    "remote_port",
+                )
+            ).casefold()
+        ]
+    return MemoryNetworkArtifactPageSchema(
+        items=[
+            MemoryNetworkArtifactSchema.model_validate(item)
+            for item in items[offset : offset + limit]
+        ],
         total=len(items),
         offset=offset,
         limit=limit,

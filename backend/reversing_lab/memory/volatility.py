@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..config import get_settings
 from ..errors import IntegrationUnavailableError
-from .models import MemoryModule, MemoryProcess, MemoryRegion
+from .models import MemoryModule, MemoryNetworkArtifact, MemoryProcess, MemoryRegion
 
 ALLOWED_PLUGINS: tuple[str, ...] = (
     "windows.info.Info",
@@ -42,6 +42,7 @@ class VolatilityResult:
     regions: tuple[MemoryRegion, ...]
     completed_plugins: tuple[str, ...]
     warnings: tuple[str, ...]
+    network: tuple[MemoryNetworkArtifact, ...] = ()
 
 
 def _column_key(value: object) -> str:
@@ -132,6 +133,24 @@ def _supported_payload(payload: object) -> bool:
     )
 
 
+def _tree_rows(payload: object) -> list[tuple[dict[str, object], int]]:
+    flattened: list[tuple[dict[str, object], int]] = []
+
+    def visit(row: dict[str, object], depth: int) -> None:
+        reported_depth = _integer(_value(row, "Depth", "TreeDepth"))
+        actual_depth = max(reported_depth if reported_depth is not None else depth, 0)
+        flattened.append((row, actual_depth))
+        children = row.get("__children")
+        if isinstance(children, list):
+            for child in children:
+                if isinstance(child, dict):
+                    visit(child, actual_depth + 1)
+
+    for row in _rows(payload):
+        visit(row, 0)
+    return flattened
+
+
 def _region_assessment(
     protection: str, private_memory: bool | None, mapped_file: str | None
 ) -> tuple[bool, str | None]:
@@ -166,6 +185,29 @@ def _normalize_processes(payload: object, provider: str) -> list[MemoryProcess]:
                 thread_count=_integer(_value(row, "Threads", "ThreadCount")),
                 module_count=None,
                 source_provider=provider,
+            )
+        )
+    return normalized
+
+
+def _normalize_process_tree(payload: object, provider: str) -> list[MemoryProcess]:
+    normalized: list[MemoryProcess] = []
+    for row, depth in _tree_rows(payload):
+        pid = _integer(_value(row, "PID", "Pid"))
+        if pid is None or pid < 0:
+            continue
+        ppid = _integer(_value(row, "PPID", "PPid", "Parent PID"))
+        normalized.append(
+            MemoryProcess(
+                pid=pid,
+                ppid=ppid if ppid is None or ppid >= 0 else None,
+                name=_text(_value(row, "ImageFileName", "Name", "Process"))
+                or "unknown",
+                command_line=_text(_value(row, "CommandLine", "Command Line", "Cmd")),
+                thread_count=_integer(_value(row, "Threads", "ThreadCount")),
+                module_count=None,
+                source_provider=provider,
+                tree_depth=depth,
             )
         )
     return normalized
@@ -227,6 +269,92 @@ def _normalize_regions(payload: object, provider: str) -> list[MemoryRegion]:
             )
         )
     return normalized
+
+
+def _normalize_network(payload: object, provider: str) -> list[MemoryNetworkArtifact]:
+    normalized: list[MemoryNetworkArtifact] = []
+    for row in _rows(payload):
+        protocol = _text(_value(row, "Proto", "Protocol"))
+        local_address = _text(_value(row, "LocalAddr", "Local Address", "LocalAddress"))
+        if protocol is None or local_address is None:
+            continue
+        pid = _integer(_value(row, "PID", "Pid"))
+        local_port = _integer(_value(row, "LocalPort", "Local Port"))
+        remote_port = _integer(
+            _value(row, "ForeignPort", "RemotePort", "Foreign Port", "Remote Port")
+        )
+        offset = _integer(_value(row, "Offset"))
+        if offset is not None and offset < 0:
+            offset = None
+        normalized.append(
+            MemoryNetworkArtifact(
+                protocol=protocol.upper(),
+                local_address=local_address,
+                local_port=(
+                    local_port
+                    if local_port is None or 0 <= local_port <= 65_535
+                    else None
+                ),
+                remote_address=_text(
+                    _value(
+                        row,
+                        "ForeignAddr",
+                        "RemoteAddr",
+                        "Foreign Address",
+                        "Remote Address",
+                    )
+                ),
+                remote_port=(
+                    remote_port
+                    if remote_port is None or 0 <= remote_port <= 65_535
+                    else None
+                ),
+                state=_text(_value(row, "State")),
+                pid=pid if pid is None or pid >= 0 else None,
+                process_name=_text(_value(row, "Owner", "Process", "ImageFileName")),
+                created_at=_text(_value(row, "Created", "CreateTime", "Create Time")),
+                source_provider=provider,
+                offset=offset,
+            )
+        )
+    return normalized
+
+
+def _merge_processes(
+    listed: list[MemoryProcess], tree: list[MemoryProcess], tree_available: bool
+) -> list[MemoryProcess]:
+    by_pid = {process.pid: process for process in listed}
+    for tree_process in tree:
+        listed_process = by_pid.get(tree_process.pid)
+        if listed_process is None:
+            by_pid[tree_process.pid] = tree_process
+            continue
+        by_pid[tree_process.pid] = replace(
+            listed_process,
+            ppid=tree_process.ppid
+            if tree_process.ppid is not None
+            else listed_process.ppid,
+            name=(
+                tree_process.name
+                if listed_process.name == "unknown" and tree_process.name != "unknown"
+                else listed_process.name
+            ),
+            command_line=tree_process.command_line or listed_process.command_line,
+            tree_depth=tree_process.tree_depth,
+        )
+    processes = list(by_pid.values())
+    if tree_available:
+        known_pids = set(by_pid)
+        processes = [
+            replace(
+                process,
+                orphaned=(
+                    process.ppid not in {None, 0} and process.ppid not in known_pids
+                ),
+            )
+            for process in processes
+        ]
+    return processes
 
 
 class VolatilityAdapter:
@@ -300,8 +428,10 @@ class VolatilityAdapter:
         """Run only server-selected plugins; callers cannot supply plugin names."""
         settings = get_settings()
         processes: list[MemoryProcess] = []
+        tree_processes: list[MemoryProcess] = []
         modules: list[MemoryModule] = []
         regions: list[MemoryRegion] = []
+        network: list[MemoryNetworkArtifact] = []
         completed_plugins: list[str] = []
         warnings: list[str] = []
         specifications = (
@@ -309,6 +439,12 @@ class VolatilityAdapter:
                 "windows.pslist.PsList",
                 _normalize_processes,
                 processes,
+                settings.max_memory_processes,
+            ),
+            (
+                "windows.pstree.PsTree",
+                _normalize_process_tree,
+                tree_processes,
                 settings.max_memory_processes,
             ),
             (
@@ -322,6 +458,12 @@ class VolatilityAdapter:
                 _normalize_regions,
                 regions,
                 settings.max_memory_regions,
+            ),
+            (
+                "windows.netscan.NetScan",
+                _normalize_network,
+                network,
+                settings.max_memory_network_records,
             ),
         )
         for plugin, normalizer, destination, limit in specifications:
@@ -344,9 +486,29 @@ class VolatilityAdapter:
                     f"retained the configured maximum of {limit}."
                 )
 
+        processes = _merge_processes(
+            processes,
+            tree_processes,
+            "windows.pstree.PsTree" in completed_plugins,
+        )
+        if len(processes) > settings.max_memory_processes:
+            warnings.append(
+                f"Merged process records exceeded the configured maximum of "
+                f"{settings.max_memory_processes}."
+            )
+            processes = processes[: settings.max_memory_processes]
+
         modules.sort(key=lambda item: (item.pid, item.base_address, item.name.lower()))
         regions.sort(
             key=lambda item: (item.pid if item.pid is not None else -1, item.start)
+        )
+        network.sort(
+            key=lambda item: (
+                item.pid if item.pid is not None else -1,
+                item.protocol,
+                item.local_address,
+                item.local_port if item.local_port is not None else -1,
+            )
         )
         processes.sort(key=lambda item: item.pid)
         if "windows.dlllist.DllList" in completed_plugins:
@@ -364,4 +526,5 @@ class VolatilityAdapter:
             regions=tuple(regions),
             completed_plugins=tuple(completed_plugins),
             warnings=tuple(warnings),
+            network=tuple(network),
         )

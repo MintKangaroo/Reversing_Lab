@@ -655,6 +655,27 @@ class MemoryProcessSchema(BaseModel):
     thread_count: int | None
     module_count: int | None
     source_provider: str
+    tree_depth: int | None = None
+    orphaned: bool | None = None
+
+
+class MemoryNetworkArtifactSchema(BaseModel):
+    protocol: str
+    local_address: str
+    local_port: int | None
+    remote_address: str | None
+    remote_port: int | None
+    state: str | None
+    pid: int | None
+    process_name: str | None
+    created_at: str | None
+    source_provider: str
+    offset: int | None = None
+
+    @computed_field
+    @property
+    def offset_hex(self) -> str | None:
+        return f"0x{self.offset:x}" if self.offset is not None else None
 
 
 class MemoryModuleSchema(BaseModel):
@@ -713,6 +734,7 @@ class MemoryAnalysisSummarySchema(BaseModel):
     process_count: int
     module_count: int = 0
     region_count: int
+    network_count: int = 0
     string_count: int
     urls: list[str]
     ip_addresses: list[str]
@@ -738,6 +760,13 @@ class MemoryModulePageSchema(BaseModel):
 
 class MemoryRegionPageSchema(BaseModel):
     items: list[MemoryRegionSchema]
+    total: int
+    offset: int
+    limit: int
+
+
+class MemoryNetworkArtifactPageSchema(BaseModel):
+    items: list[MemoryNetworkArtifactSchema]
     total: int
     offset: int
     limit: int
