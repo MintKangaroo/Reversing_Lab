@@ -10,8 +10,8 @@ finding, 메모리 트리아지, 격리형 동적 분석 제어, CTF 노트와 �
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-123_passing-3fb950)
-![Frontend tests](https://img.shields.io/badge/frontend_tests-17_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-124_passing-3fb950)
+![Frontend tests](https://img.shields.io/badge/frontend_tests-18_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ![Reversing Lab dashboard](docs/screenshots/01-dashboard.png)
@@ -40,8 +40,9 @@ docker compose up --build
 4. 오른쪽 Inspector에 함수 이름, 코멘트와 bookmark를 기록합니다.
 5. `Reports`에서 JSON, Markdown 또는 HTML 보고서를 내려받습니다.
 6. `Settings`에서 최근 변경 감사 기록을 JSONL로 내보내거나 내 데이터 정리 dry-run을 확인합니다.
-7. 메모리 덤프는 `Memory`에서 업로드합니다. Volatility 3가 있으면 process, loaded module,
-   VAD region을 함께 수집하고, 없으면 안전한 기본 문자열·IOC 분석으로 자동 전환됩니다.
+7. 메모리 덤프는 `Memory`에서 업로드합니다. Volatility 3가 있으면 process tree, loaded
+   module, VAD region, network endpoint를 함께 수집하고, 없으면 기본 문자열·IOC 분석으로
+   안전하게 전환됩니다.
 
 주소는 UI에서 `0x...`로 표시됩니다. Pseudo-C는 원본 소스가 아니라 보수적인 추정 결과이며,
 각 finding에는 verified/heuristic/inferred provenance와 false-positive 주의 사항이 표시됩니다.
@@ -60,7 +61,7 @@ docker compose up --build
 |---|---|
 | ![Program Flow](docs/screenshots/08-program-flow.png) | ![Obfuscation](docs/screenshots/10-obfuscation.png) |
 
-| 메모리 모듈·VAD 분석 | 격리 실행 안전 게이트 |
+| 메모리 Process Tree·Network 분석 | 격리 실행 안전 게이트 |
 |---|---|
 | ![Memory analysis](docs/screenshots/11-memory-analysis.png) | ![Dynamic guardrails](docs/screenshots/12-dynamic-safety.png) |
 
@@ -80,7 +81,7 @@ docker compose up --build
 | 함수 분석 | bounded function recovery, xref, disassembly, CFG, call graph, program flow |
 | 디컴파일 | Ghidra headless adapter, 외부 도구가 없어도 동작하는 pseudo-C fallback |
 | 탐지 | 근거·confidence가 포함된 패킹 및 난독화 finding, 명시적 UPX adapter |
-| 메모리 | dump upload, data-only fallback, allowlist 기반 process/DLL/VAD 정규화, RWX finding |
+| 메모리 | data-only fallback, allowlist 기반 process tree/DLL/VAD/network 정규화와 근거 finding |
 | 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
 | 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
 | 저장·보고 | content-addressed storage, DB-backed jobs, JSON/Markdown/HTML export |
@@ -160,7 +161,7 @@ SHA-256 hash chain을 계산합니다. 외부 archive로 옮긴 뒤 파일 내�
 |---|---|---|
 | Ghidra | `GHIDRA_HOME=/opt/ghidra` | 함수 단위 headless decompile |
 | UPX | `RLAB_UPX_PATH=upx` | 사용자 확인 후 별도 unpacked artifact 생성 |
-| Volatility 3 | `RLAB_VOLATILITY_PATH=vol` | process, loaded module, VAD region 정규화 |
+| Volatility 3 | `RLAB_VOLATILITY_PATH=vol` | process tree, loaded module, VAD, network 정규화 |
 | radare2 | `RLAB_RADARE2_PATH=r2` | 선택적 whole-binary 분석 |
 | Binary Ninja | 라이선스된 Python module | 가용성 및 선택적 adapter |
 
@@ -203,7 +204,7 @@ cd backend && ../.venv/bin/pytest
 cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 기준은 SQLite backend 123개와 PostgreSQL 전용 계약 1개 skip, frontend 17개 테스트 통과,
+현재 기준은 SQLite backend 124개와 PostgreSQL 전용 계약 1개 skip, frontend 18개 테스트 통과,
 production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지
 않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend build/audit,
 Alembic drift와 whitespace를 검사합니다.
@@ -211,8 +212,8 @@ Alembic drift와 whitespace를 검사합니다.
 ## 현재 제한
 
 - 실제 VM sandbox provider와 RetDec/r2ghidra adapter는 아직 구현되지 않았습니다.
-- Volatility 정규화는 process list, loaded module, VAD region을 지원합니다. process tree,
-  handle, registry, network, YARA 및 region byte export/disassembly는 확장 예정입니다.
+- Volatility 정규화는 process list/tree, loaded module, VAD region, network endpoint를
+  지원합니다. handle, registry, YARA 및 region byte export/disassembly는 확장 예정입니다.
 - 함수 경계, 타입, indirect control flow, pseudo-C는 휴리스틱이므로 수동 검증이 필요합니다.
 - PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 OIDC, server-side rate limiting이
   추가로 필요합니다.

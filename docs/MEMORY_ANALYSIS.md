@@ -21,8 +21,8 @@ not asserted to be a valid or recoverable credential.
 2. Keep **Use allowlisted Volatility plugins** enabled only when Volatility is
    available and the input is a compatible Windows full dump.
 3. Start analysis and monitor the bounded background job.
-4. Review **Processes**, **Modules**, **Regions**, and **Findings**. Provider warnings
-   show partial plugin failures without hiding successful results.
+4. Review **Processes**, **Modules**, **Regions**, **Network**, and **Findings**.
+   Provider warnings show partial plugin failures without hiding successful results.
 
 Equivalent API flow:
 
@@ -34,6 +34,7 @@ GET  /api/memory-dumps/{id}/analysis           summary
 GET  /api/memory-dumps/{id}/processes          paginated
 GET  /api/memory-dumps/{id}/modules            paginated
 GET  /api/memory-dumps/{id}/regions            paginated
+GET  /api/memory-dumps/{id}/network            paginated and filtered
 GET  /api/memory-dumps/{id}/findings
 ```
 
@@ -59,8 +60,10 @@ The server, not the API caller, selects plugins. Current normalized execution us
 | Plugin | Normalized output | Failure behavior |
 |---|---|---|
 | `windows.pslist.PsList` | PID, PPID, name, thread count | process capability remains unavailable |
+| `windows.pstree.PsTree` | parent/child depth, orphan state, optional command line | tree capability remains unavailable |
 | `windows.dlllist.DllList` | PID, base, size, name, path, load time | module capability remains unavailable |
 | `windows.vadinfo.VadInfo` | PID, range, protection, private flag, mapping, tag | memory map remains unavailable |
+| `windows.netscan.NetScan` | protocol, local/remote endpoint, state, PID/owner, time | network capability remains unavailable |
 
 Each plugin runs separately. Missing symbols or a malformed result from one plugin is
 recorded as a provider warning and does not discard successful sibling plugin output.
@@ -75,6 +78,7 @@ RLAB_MAX_MEMORY_DUMP_BYTES=536870912
 RLAB_MAX_MEMORY_PROCESSES=10000
 RLAB_MAX_MEMORY_MODULES=50000
 RLAB_MAX_MEMORY_REGIONS=100000
+RLAB_MAX_MEMORY_NETWORK_RECORDS=50000
 RLAB_MAX_MEMORY_FINDINGS=1000
 RLAB_MAX_EXTERNAL_OUTPUT_BYTES=2097152
 ```
@@ -92,11 +96,28 @@ finding includes PID/process context, range, protection, mapping state, provider
 confidence, and a false-positive caveat. Correlate it with region bytes and dynamic
 observations before escalating.
 
+## Process tree and network observations
+
+`pstree` enriches the process list with bounded tree depth, parent linkage, optional
+command line, and orphan status. An orphan marker means the reported parent PID was not
+present in the bounded combined process result; it does not prove process injection.
+
+The Network tab queries the stored bounded artifact and supports PID, protocol, state,
+and keyword filters. Filters are never passed to a plugin. Network findings are
+deliberately conservative:
+
+- a public remote IP is an informational observation, not an IOC verdict;
+- a wildcard listening socket is low severity only when process attribution is absent.
+
+Browsers, update agents, DNS clients, enterprise services, terminated processes, and
+symbol gaps can all produce benign matches. Validate endpoints against authorization,
+time, process ancestry, and other evidence.
+
 ## Known limitations
 
 - Minidumps currently receive metadata/basic triage, not the full Windows plugin plan.
-- Process command lines, thread details, process tree, handles, registry, network,
-  YARA, region byte export, and region disassembly are not yet normalized.
+- Complete command-line coverage, thread details, handles, registry, YARA, region byte
+  export, and region disassembly are not yet normalized.
 - Volatility output is provider-supplied evidence. Bounds prevent unbounded storage but
   cannot make a compromised external tool truthful.
 - The current in-process job runner is cancellation-aware between application steps,
