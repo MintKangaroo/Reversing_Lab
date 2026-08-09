@@ -535,6 +535,14 @@ body.is-resizing { user-select: none; cursor: col-resize; }
 .memory-table-scroll { overflow: auto; }
 .memory-table-scroll table { min-width: 760px; }
 .memory-table-scroll .suspicious-row td { background: rgba(239,107,115,.055); }
+.process-tree-name { display: inline-block; color: var(--text); }
+.memory-orphan { margin-left: 7px; padding: 2px 5px; border-radius: 3px; color: var(--yellow); background: rgba(215,168,77,.1); font-size: 8px; text-transform: uppercase; }
+.memory-network-view { min-width: 0; }
+.memory-filter-bar { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)) auto; gap: 8px; align-items: end; padding: 10px; border-bottom: 1px solid var(--border-soft); background: var(--bg-inset); }
+.memory-filter-bar label { display: flex; flex-direction: column; gap: 4px; color: var(--text-faint); font-size: 8px; letter-spacing: .4px; text-transform: uppercase; }
+.memory-filter-bar input { min-width: 0; padding: 7px 8px; border: 1px solid var(--border); border-radius: 4px; outline: 0; background: var(--surface-1); color: var(--text); font: 10px var(--mono); }
+.memory-filter-bar input:focus { border-color: var(--accent); }
+.memory-filter-bar > span { grid-column: 1 / -1; color: var(--text-faint); font-size: 9px; white-space: nowrap; }
 
 .sandbox-banner { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 10px; padding: 10px 13px; border: 1px solid var(--border-soft); border-radius: 5px; background: var(--surface-1); }
 .sandbox-banner > div { min-width: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center; }

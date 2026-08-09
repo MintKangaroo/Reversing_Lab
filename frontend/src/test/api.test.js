@@ -73,6 +73,24 @@ describe('API client', () => {
     );
   });
 
+  it('encodes memory network filters as query parameters', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({
+      body: { items: [], total: 0, offset: 0, limit: 200 },
+    }));
+
+    await api.memoryNetwork('dump-1', {
+      pid: 44,
+      protocol: 'TCPV4',
+      state: 'ESTABLISHED',
+      keyword: '1.1.1.1',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/memory-dumps/dump-1/network?pid=44&protocol=TCPV4&state=ESTABLISHED&keyword=1.1.1.1',
+      {},
+    );
+  });
+
   it('downloads a filtered audit JSONL export', async () => {
     global.fetch = vi.fn().mockResolvedValue(response({
       body: '{"type":"footer","complete":true}',
