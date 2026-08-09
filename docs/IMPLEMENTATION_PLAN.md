@@ -183,3 +183,11 @@ private executable unmapped regions produce evidence-linked heuristic findings w
 false-positive caveats. Verification passed 123 default backend tests (plus one
 PostgreSQL-only skip), 17 frontend tests, the Vite production build, zero-vulnerability
 npm audit, and focused Ruff checks for the new adapter/models/tests.
+
+Process-tree/network follow-up on 2026-08-09: the server-selected Volatility plan now
+also normalizes nested `windows.pstree.PsTree` and `windows.netscan.NetScan` results.
+Process ancestry, orphan context, network endpoints, provider provenance, exact large
+offset display, bounded filters, and conservative public-endpoint/listener findings are
+available through the API and workbench. Verification passed 124 default backend tests
+(plus one PostgreSQL-only skip), 18 frontend tests, production build, zero-vulnerability
+npm audit, and focused Ruff checks.

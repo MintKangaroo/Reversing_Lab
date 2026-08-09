@@ -24,6 +24,23 @@ class MemoryProcess:
     thread_count: int | None
     module_count: int | None
     source_provider: str
+    tree_depth: int | None = None
+    orphaned: bool | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MemoryNetworkArtifact:
+    protocol: str
+    local_address: str
+    local_port: int | None
+    remote_address: str | None
+    remote_port: int | None
+    state: str | None
+    pid: int | None
+    process_name: str | None
+    created_at: str | None
+    source_provider: str
+    offset: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,3 +95,4 @@ class MemoryAnalysisResult:
     unavailable: tuple[str, ...]
     warnings: tuple[str, ...]
     modules: tuple[MemoryModule, ...] = ()
+    network: tuple[MemoryNetworkArtifact, ...] = ()

@@ -11,7 +11,13 @@ from urllib.parse import urlparse
 from ..analyzer.strings import extract_strings
 from ..config import get_settings
 from ..jobs import JobContext
-from .models import MemoryAnalysisResult, MemoryFinding, MemoryMetadata, MemoryRegion
+from .models import (
+    MemoryAnalysisResult,
+    MemoryFinding,
+    MemoryMetadata,
+    MemoryNetworkArtifact,
+    MemoryRegion,
+)
 from .volatility import VolatilityAdapter
 
 _URL = re.compile(r"https?://[^\s\"'<>]{4,512}", re.IGNORECASE)
@@ -22,7 +28,7 @@ _DOMAIN = re.compile(
 
 
 def detect_dump_format(data: bytes) -> tuple[str, str | None, float]:
-    if data.startswith(b"PAGEDUMP") or data.startswith(b"DUMP"):
+    if data.startswith((b"PAGEDUMP", b"DUMP")):
         return "windows-memory-dump", "Windows", 0.92
     if data.startswith(b"MDMP"):
         return "windows-minidump", "Windows", 0.98
@@ -94,6 +100,107 @@ def _region_findings(
     return findings, truncated
 
 
+def _parsed_endpoint(
+    value: str | None,
+) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    if not value:
+        return None
+    candidate = value.strip().strip("[]").split("%", 1)[0]
+    try:
+        return ipaddress.ip_address(candidate)
+    except ValueError:
+        return None
+
+
+def _network_findings(
+    records: tuple[MemoryNetworkArtifact, ...], limit: int
+) -> tuple[list[MemoryFinding], bool]:
+    findings: list[MemoryFinding] = []
+    truncated = False
+    seen: set[tuple[str, int | None, str | None, int | None, int | None]] = set()
+    for index, record in enumerate(records):
+        remote_ip = _parsed_endpoint(record.remote_address)
+        public_remote = bool(
+            remote_ip and remote_ip.is_global and record.remote_port not in {None, 0}
+        )
+        state = (record.state or "").upper()
+        local_ip = _parsed_endpoint(record.local_address)
+        wildcard_listener = (
+            "LISTEN" in state
+            and (
+                record.local_address == "*"
+                or bool(local_ip and local_ip.is_unspecified)
+            )
+            and (not record.process_name or record.process_name.casefold() == "unknown")
+        )
+        if not public_remote and not wildcard_listener:
+            continue
+        key = (
+            record.protocol,
+            record.pid,
+            record.remote_address if public_remote else record.local_address,
+            record.remote_port if public_remote else record.local_port,
+            1 if public_remote else 0,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        if len(findings) >= limit:
+            truncated = True
+            break
+        pid = str(record.pid) if record.pid is not None else "unknown"
+        process = record.process_name or "unattributed"
+        finding_id = (
+            f"memory-network-{record.offset:x}"
+            if record.offset is not None
+            else f"memory-network-{index}"
+        )
+        if public_remote:
+            findings.append(
+                MemoryFinding(
+                    id=finding_id,
+                    title="Public remote network endpoint observed",
+                    severity="info",
+                    confidence=0.9,
+                    summary=(
+                        "Volatility reported a process endpoint connected to a public "
+                        "IP address. This is an observation, not a maliciousness verdict."
+                    ),
+                    evidence=(
+                        f"PID {pid} ({process}), protocol {record.protocol}, state {record.state or 'unknown'}.",
+                        f"Local {record.local_address}:{record.local_port}; remote {record.remote_address}:{record.remote_port}.",
+                        f"Source provider: {record.source_provider}.",
+                    ),
+                    false_positive_note=(
+                        "Normal browsers, update agents, DNS clients, and enterprise software "
+                        "routinely connect to public endpoints. Validate ownership and timing."
+                    ),
+                )
+            )
+        else:
+            findings.append(
+                MemoryFinding(
+                    id=finding_id,
+                    title="Unattributed wildcard listener",
+                    severity="low",
+                    confidence=0.62,
+                    summary=(
+                        "Volatility reported a wildcard listening socket without process "
+                        "attribution; review it with adjacent process and handle evidence."
+                    ),
+                    evidence=(
+                        f"Protocol {record.protocol}, local {record.local_address}:{record.local_port}, state {record.state}.",
+                        f"PID {pid}; source provider: {record.source_provider}.",
+                    ),
+                    false_positive_note=(
+                        "Kernel-owned sockets, terminated processes, symbol gaps, and normal "
+                        "services can leave a listener without reliable attribution."
+                    ),
+                )
+            )
+    return findings, truncated
+
+
 def analyze_memory(
     dump_path: Path,
     *,
@@ -154,9 +261,11 @@ def analyze_memory(
     processes = ()
     modules = ()
     regions = ()
+    network = ()
     provider = "basic"
     unavailable = [
         "process list",
+        "process tree",
         "thread details",
         "command lines",
         "loaded modules",
@@ -164,6 +273,7 @@ def analyze_memory(
         "environment variables",
         "registry artifacts",
         "memory protection map",
+        "network connections",
         "process dump export",
     ]
     warnings: list[str] = []
@@ -176,15 +286,22 @@ def analyze_memory(
             processes = volatility_result.processes
             modules = volatility_result.modules
             regions = volatility_result.regions
+            network = volatility_result.network
             warnings.extend(volatility_result.warnings)
             provider = volatility.name
             completed = set(volatility_result.completed_plugins)
-            if "windows.pslist.PsList" in completed:
+            if completed.intersection(
+                {"windows.pslist.PsList", "windows.pstree.PsTree"}
+            ):
                 unavailable.remove("process list")
+            if "windows.pstree.PsTree" in completed:
+                unavailable.remove("process tree")
             if "windows.dlllist.DllList" in completed:
                 unavailable.remove("loaded modules")
             if "windows.vadinfo.VadInfo" in completed:
                 unavailable.remove("memory protection map")
+            if "windows.netscan.NetScan" in completed:
+                unavailable.remove("network connections")
         else:
             warnings.append(
                 "Volatility 3 is unavailable; returned basic metadata, strings, and IOCs only."
@@ -194,9 +311,13 @@ def analyze_memory(
         regions, max(settings.max_memory_findings - len(findings), 0)
     )
     findings.extend(region_findings)
-    if truncated_findings:
+    network_findings, truncated_network_findings = _network_findings(
+        network, max(settings.max_memory_findings - len(findings), 0)
+    )
+    findings.extend(network_findings)
+    if truncated_findings or truncated_network_findings:
         warnings.append(
-            "Suspicious memory-region findings exceeded the configured limit; "
+            "Memory findings exceeded the configured limit; "
             f"retained {settings.max_memory_findings}."
         )
 
@@ -215,4 +336,5 @@ def analyze_memory(
         unavailable=tuple(unavailable),
         warnings=tuple(warnings),
         modules=modules,
+        network=network,
     )

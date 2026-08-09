@@ -13,6 +13,7 @@ vi.mock('../api.js', () => ({
     memoryProcesses: vi.fn(),
     memoryModules: vi.fn(),
     memoryRegions: vi.fn(),
+    memoryNetwork: vi.fn(),
     memoryFindings: vi.fn(),
   },
   hex: (value) => `0x${Number(value).toString(16)}`,
@@ -40,6 +41,7 @@ beforeEach(() => {
     process_count: 1,
     module_count: 1,
     region_count: 1,
+    network_count: 1,
     string_count: 4,
     urls: [],
     ip_addresses: [],
@@ -51,6 +53,7 @@ beforeEach(() => {
   api.memoryProcesses.mockResolvedValue({
     items: [{
       pid: 44, ppid: 4, name: 'fixture.exe', thread_count: 2, module_count: 1,
+      tree_depth: 1, orphaned: false,
       source_provider: 'volatility3',
     }],
     total: 1,
@@ -70,6 +73,16 @@ beforeEach(() => {
     }],
     total: 1,
   });
+  api.memoryNetwork.mockResolvedValue({
+    items: [{
+      pid: 44, process_name: 'fixture.exe', protocol: 'TCPV4',
+      local_address: '10.0.0.5', local_port: 51514,
+      remote_address: '1.1.1.1', remote_port: 443,
+      state: 'ESTABLISHED', created_at: '2026-08-09 03:00:00',
+      offset_hex: '0xffff800000002000', source_provider: 'volatility3',
+    }],
+    total: 1,
+  });
   api.memoryFindings.mockResolvedValue([{ id: 'finding-1', title: 'Writable and executable memory region', severity: 'high', confidence: 0.9, summary: 'Review this region.', evidence: ['PID 44 at 0x1000.'], false_positive_note: 'JIT runtimes may create this mapping.' }]);
 });
 
@@ -85,6 +98,10 @@ it('loads normalized Volatility modules, regions, warnings, and evidence', async
 
   expect(await screen.findByText('netscan unavailable', {}, { timeout: 2000 })).toBeVisible();
   expect(api.memoryModules).toHaveBeenCalledWith('dump-1');
+  expect(api.memoryNetwork).toHaveBeenCalledWith('dump-1');
+
+  fireEvent.click(screen.getByRole('button', { name: 'processes (1)' }));
+  expect(screen.getByText('↳ fixture.exe')).toBeVisible();
 
   fireEvent.click(screen.getByRole('button', { name: 'modules (1)' }));
   expect(screen.getByText('0x140000000')).toBeVisible();
@@ -93,6 +110,16 @@ it('loads normalized Volatility modules, regions, warnings, and evidence', async
   fireEvent.click(screen.getByRole('button', { name: 'regions (1)' }));
   expect(screen.getByText('PAGE_EXECUTE_READWRITE')).toBeVisible();
   expect(screen.getByText(/Writable and executable memory region/)).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'network (1)' }));
+  expect(screen.getByText('1.1.1.1:443')).toBeVisible();
+  fireEvent.change(screen.getByLabelText('Filter network by keyword'), {
+    target: { value: '1.1.1.1' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
+  await waitFor(() => expect(api.memoryNetwork).toHaveBeenLastCalledWith('dump-1', {
+    keyword: '1.1.1.1',
+  }));
 
   fireEvent.click(screen.getByRole('button', { name: 'findings (1)' }));
   fireEvent.click(screen.getByText('Evidence (1)'));

@@ -159,6 +159,10 @@ export const api = {
   memoryProcesses: (id) => request(`/memory-dumps/${id}/processes`),
   memoryModules: (id) => request(`/memory-dumps/${id}/modules`),
   memoryRegions: (id) => request(`/memory-dumps/${id}/regions`),
+  memoryNetwork: (id, params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/memory-dumps/${id}/network${query.size ? `?${query}` : ''}`);
+  },
   memoryFindings: (id) => request(`/memory-dumps/${id}/findings`),
   jobs: () => request('/jobs'),
   job: (id) => request(`/jobs/${id}`),

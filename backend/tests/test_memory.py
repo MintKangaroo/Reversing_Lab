@@ -13,6 +13,7 @@ from reversing_lab.memory.models import (
     MemoryAnalysisResult,
     MemoryMetadata,
     MemoryModule,
+    MemoryNetworkArtifact,
     MemoryProcess,
     MemoryRegion,
 )
@@ -124,6 +125,7 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
             max_memory_processes=100,
             max_memory_modules=100,
             max_memory_regions=100,
+            max_memory_network_records=100,
         ),
     )
     observed = {"commands": []}
@@ -134,6 +136,21 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
         payloads = {
             "windows.pslist.PsList": [
                 {"PID": 4, "PPID": 0, "ImageFileName": "System", "Threads": 10}
+            ],
+            "windows.pstree.PsTree": [
+                {
+                    "PID": 4,
+                    "PPID": 0,
+                    "ImageFileName": "System",
+                    "__children": [
+                        {
+                            "PID": 120,
+                            "PPID": 4,
+                            "ImageFileName": "smss.exe",
+                            "Cmd": r"\\SystemRoot\\System32\\smss.exe",
+                        }
+                    ],
+                }
             ],
             "windows.dlllist.DllList": [
                 {
@@ -157,6 +174,20 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
                     "Tag": "VadS",
                 }
             ],
+            "windows.netscan.NetScan": [
+                {
+                    "Offset": "0xffff800000001000",
+                    "Proto": "TCPv4",
+                    "LocalAddr": "10.0.0.5",
+                    "LocalPort": 51514,
+                    "ForeignAddr": "1.1.1.1",
+                    "ForeignPort": 443,
+                    "State": "ESTABLISHED",
+                    "PID": 120,
+                    "Owner": "smss.exe",
+                    "Created": "2026-08-09 03:00:00",
+                }
+            ],
         }
         kwargs["stdout"].write(json.dumps(payloads[command[-1]]).encode())
         kwargs["stdout"].flush()
@@ -166,14 +197,21 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
     result = VolatilityAdapter().analyze(dump)
     assert result.processes[0].pid == 4
     assert result.processes[0].module_count == 1
+    assert result.processes[1].pid == 120
+    assert result.processes[1].tree_depth == 1
+    assert result.processes[1].command_line.endswith("smss.exe")
     assert result.modules[0].base_address == 0x180000000
     assert result.regions[0].suspicious is True
     assert result.regions[0].private_memory is True
+    assert result.network[0].remote_address == "1.1.1.1"
+    assert result.network[0].offset == 0xFFFF800000001000
     assert result.warnings == ()
     assert [command[-1] for command in observed["commands"]] == [
         "windows.pslist.PsList",
+        "windows.pstree.PsTree",
         "windows.dlllist.DllList",
         "windows.vadinfo.VadInfo",
+        "windows.netscan.NetScan",
     ]
     assert observed["shell"] is False
     with pytest.raises(ValueError):
@@ -190,18 +228,22 @@ def test_volatility_plugin_failures_are_isolated(tmp_path: Path, monkeypatch) ->
             raise IntegrationUnavailableError("dlllist symbols unavailable")
         if plugin == "windows.pslist.PsList":
             return [{"PID": "8", "PPID": "4", "ImageFileName": "worker.exe"}]
-        return {
-            "columns": [
-                "PID",
-                "Process",
-                "Start",
-                "End",
-                "Protection",
-                "PrivateMemory",
-                "File",
-            ],
-            "rows": [[8, "worker.exe", 4096, 8191, "PAGE_EXECUTE_READ", True, None]],
-        }
+        if plugin == "windows.vadinfo.VadInfo":
+            return {
+                "columns": [
+                    "PID",
+                    "Process",
+                    "Start",
+                    "End",
+                    "Protection",
+                    "PrivateMemory",
+                    "File",
+                ],
+                "rows": [
+                    [8, "worker.exe", 4096, 8191, "PAGE_EXECUTE_READ", True, None]
+                ],
+            }
+        return []
 
     monkeypatch.setattr(VolatilityAdapter, "_run", fake_run)
     result = VolatilityAdapter().analyze(dump)
@@ -214,7 +256,9 @@ def test_volatility_plugin_failures_are_isolated(tmp_path: Path, monkeypatch) ->
     )
     assert result.completed_plugins == (
         "windows.pslist.PsList",
+        "windows.pstree.PsTree",
         "windows.vadinfo.VadInfo",
+        "windows.netscan.NetScan",
     )
     assert result.warnings == ("dlllist symbols unavailable",)
 
@@ -231,6 +275,7 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
             max_memory_processes=1,
             max_memory_modules=1,
             max_memory_regions=1,
+            max_memory_network_records=1,
         ),
     )
 
@@ -241,14 +286,24 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
                 {"PID": 1, "ImageFileName": "first.exe"},
                 {"PID": 2, "ImageFileName": "second.exe"},
             ]
+        if plugin == "windows.netscan.NetScan":
+            return [
+                {"Proto": "TCPv4", "LocalAddr": "127.0.0.1", "LocalPort": 80},
+                {"Proto": "UDPv4", "LocalAddr": "0.0.0.0", "LocalPort": 53},
+            ]
         return []
 
     monkeypatch.setattr(VolatilityAdapter, "_run", fake_run)
     result = VolatilityAdapter().analyze(dump)
 
     assert [process.pid for process in result.processes] == [1]
+    assert len(result.network) == 1
     assert "returned 2 records" in result.warnings[0]
     assert "configured maximum of 1" in result.warnings[0]
+    assert any(
+        "windows.netscan.NetScan returned 2 records" in warning
+        for warning in result.warnings
+    )
 
 
 def test_volatility_rejects_unsupported_json_structure(
@@ -312,7 +367,64 @@ def test_memory_analyzer_emits_evidenced_region_finding(
     assert "loaded modules" in result.unavailable
 
 
-def test_memory_module_api_and_region_metadata(api_client, monkeypatch) -> None:
+def test_memory_analyzer_emits_conservative_network_findings(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from reversing_lab.memory.analyzer import analyze_memory
+
+    dump = tmp_path / "authorized.dmp"
+    dump.write_bytes(b"PAGEDUMP" + b"\x00" * 248)
+    provider_result = VolatilityResult(
+        processes=(),
+        modules=(),
+        regions=(),
+        completed_plugins=("windows.netscan.NetScan",),
+        warnings=(),
+        network=(
+            MemoryNetworkArtifact(
+                protocol="TCPV4",
+                local_address="10.0.0.5",
+                local_port=51514,
+                remote_address="1.1.1.1",
+                remote_port=443,
+                state="ESTABLISHED",
+                pid=77,
+                process_name="browser-fixture.exe",
+                created_at=None,
+                source_provider="volatility3",
+                offset=0x1000,
+            ),
+            MemoryNetworkArtifact(
+                protocol="TCPV6",
+                local_address="::",
+                local_port=4444,
+                remote_address="::",
+                remote_port=0,
+                state="LISTENING",
+                pid=None,
+                process_name=None,
+                created_at=None,
+                source_provider="volatility3",
+                offset=0x2000,
+            ),
+        ),
+    )
+    monkeypatch.setattr(VolatilityAdapter, "is_available", lambda self: True)
+    monkeypatch.setattr(
+        VolatilityAdapter, "analyze", lambda self, dump_path: provider_result
+    )
+
+    result = analyze_memory(dump)
+
+    assert [finding.title for finding in result.findings] == [
+        "Public remote network endpoint observed",
+        "Unattributed wildcard listener",
+    ]
+    assert [finding.severity for finding in result.findings] == ["info", "low"]
+    assert "network connections" not in result.unavailable
+
+
+def test_memory_module_region_and_network_api(api_client, monkeypatch) -> None:
     from reversing_lab.api.routes import memory
 
     result = MemoryAnalysisResult(
@@ -333,6 +445,8 @@ def test_memory_module_api_and_region_metadata(api_client, monkeypatch) -> None:
                 thread_count=2,
                 module_count=1,
                 source_provider="volatility3",
+                tree_depth=2,
+                orphaned=False,
             ),
         ),
         regions=(
@@ -370,6 +484,21 @@ def test_memory_module_api_and_region_metadata(api_client, monkeypatch) -> None:
                 source_provider="volatility3",
             ),
         ),
+        network=(
+            MemoryNetworkArtifact(
+                protocol="TCPV4",
+                local_address="10.0.0.5",
+                local_port=51514,
+                remote_address="1.1.1.1",
+                remote_port=443,
+                state="ESTABLISHED",
+                pid=44,
+                process_name="fixture.exe",
+                created_at="2026-08-09 03:00:00",
+                source_provider="volatility3",
+                offset=0xFFFF800000002000,
+            ),
+        ),
     )
     monkeypatch.setattr(memory, "analyze_memory", lambda *args, **kwargs: result)
     upload = api_client.post(
@@ -383,12 +512,33 @@ def test_memory_module_api_and_region_metadata(api_client, monkeypatch) -> None:
     assert _wait_for_job(api_client, started.json()["id"])["state"] == "completed"
 
     summary = api_client.get(f"/api/memory-dumps/{dump_id}/analysis").json()
+    processes = api_client.get(f"/api/memory-dumps/{dump_id}/processes").json()
     modules = api_client.get(f"/api/memory-dumps/{dump_id}/modules").json()
     regions = api_client.get(f"/api/memory-dumps/{dump_id}/regions").json()
+    network = api_client.get(
+        f"/api/memory-dumps/{dump_id}/network",
+        params={
+            "pid": 44,
+            "protocol": "tcpv4",
+            "state": "established",
+            "keyword": "1.1.1.1",
+        },
+    ).json()
     assert summary["module_count"] == 1
+    assert summary["network_count"] == 1
+    assert processes["items"][0]["tree_depth"] == 2
+    assert processes["items"][0]["orphaned"] is False
     assert modules["total"] == 1
     assert modules["items"][0]["base_address"] == 0x140000000
     assert modules["items"][0]["base_address_hex"] == "0x140000000"
     assert regions["items"][0]["pid"] == 44
     assert regions["items"][0]["start_hex"] == "0xffff800000001000"
     assert regions["items"][0]["end_hex"] == "0xffff800000001fff"
+    assert network["total"] == 1
+    assert network["items"][0]["offset_hex"] == "0xffff800000002000"
+    assert (
+        api_client.get(
+            f"/api/memory-dumps/{dump_id}/network", params={"keyword": "x" * 257}
+        ).status_code
+        == 422
+    )

@@ -55,11 +55,16 @@ Memory module and region responses retain integer addresses and also include exa
 | POST | `/jobs/{id}/cancel` |
 | POST / GET | `/memory-dumps`, `/memory-dumps/{id}` |
 | POST / GET | `/memory-dumps/{id}/analysis` |
-| GET | `/memory-dumps/{id}/processes`, `/modules`, `/regions`, `/findings` |
+| GET | `/memory-dumps/{id}/processes`, `/modules`, `/regions`, `/network`, `/findings` |
 | GET | `/dynamic-analysis/readiness` |
 | POST | `/dynamic-analysis` |
 | GET / POST | `/dynamic-analysis/{run_id}`, `/cancel` |
 | GET | `/dynamic-analysis/{run_id}/events`, `/artifacts` |
+
+`/memory-dumps/{id}/network` supports bounded `offset`/`limit` pagination and exact
+`pid`, case-insensitive `protocol`/`state`, and bounded `keyword` filters. Filtering
+operates only on the already bounded result artifact and never becomes a plugin or CLI
+argument.
 
 ## CTF, tools, and capabilities
 
