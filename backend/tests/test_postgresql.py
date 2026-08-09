@@ -157,6 +157,11 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
         ).list(offset=0, limit=10)
         assert audit_total == 1
         assert audit_items[0].details_json == "{}"
+        audit_repository = AuditRepository(session, "analyst-one", False)
+        assert audit_repository.export_count() == 1
+        assert [item.request_id for item in audit_repository.iter_export(limit=1)] == [
+            "00000000-0000-0000-0000-000000000001"
+        ]
 
         settings = get_settings()
         previous_storage = settings.storage_dir

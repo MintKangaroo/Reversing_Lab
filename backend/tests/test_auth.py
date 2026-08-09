@@ -325,6 +325,17 @@ def test_audit_events_are_principal_scoped_and_admin_auditable(
         "analyst-one"
     }
     assert "private analyst one name" not in json.dumps(first_events)
+    first_export = client.get(
+        "/api/audit-events/export", headers=analyst_one
+    )
+    exported_lines = [json.loads(line) for line in first_export.text.splitlines()]
+    assert first_export.status_code == 200
+    assert exported_lines[0]["scope"] == "principal:analyst-one"
+    assert [
+        item["principal_id"]
+        for item in exported_lines
+        if item["type"] == "event"
+    ] == ["analyst-one"]
 
     admin_events = client.get("/api/audit-events", headers=admin).json()
     assert admin_events["total"] == 3
@@ -333,6 +344,8 @@ def test_audit_events_are_principal_scoped_and_admin_auditable(
         "analyst-two",
         "anonymous",
     }
+    admin_export = client.get("/api/audit-events/export", headers=admin)
+    assert admin_export.headers["x-audit-export-records"] == "3"
 
 
 def test_shared_binary_is_reclaimed_only_after_last_owner_purges(

@@ -5,11 +5,11 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from ...analyzer import upx_executable
+from ...config import get_settings
 from ...decompiler import list_decompilers
 from ...dynamic import get_sandbox_provider
 from ...integrations import list_integrations
 from ...memory import ALLOWED_PLUGINS, VolatilityAdapter
-from ...config import get_settings
 from ..schemas import (
     AnalysisLimitsSchema,
     AuthenticationConfigSchema,
@@ -111,6 +111,7 @@ def runtime_configuration() -> RuntimeConfigurationSchema:
             max_strings=settings.max_strings,
             max_yara_matches=settings.max_yara_matches,
             max_dynamic_events=settings.max_dynamic_events,
+            max_audit_export_records=settings.max_audit_export_records,
             max_analysis_seconds=settings.max_analysis_seconds,
             max_decompiler_seconds=settings.max_decompiler_seconds,
             max_external_output_bytes=settings.max_external_output_bytes,
