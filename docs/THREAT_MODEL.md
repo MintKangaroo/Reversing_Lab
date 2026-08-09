@@ -35,6 +35,8 @@ are operator-controlled but still validated before sensitive use.
 | malformed parser input | format detection, typed errors, analysis bounds | native parser library bugs remain possible |
 | command injection | fixed argv, no shell, allowlisted plugins | external tool vulnerabilities remain |
 | forged or oversized Volatility output | typed normalization, per-record-class caps, provider attribution | a compromised tool can still fabricate bounded results |
+| VAD extraction path/size abuse | exact stored PID/range match, fixed argv, private output dir, basename/symlink/size checks | a compromised Volatility executable can still return misleading bytes within the cap |
+| extracted bytes mistaken for executed code | UI caveat, provider/hash provenance, architecture-labelled data-only Capstone decode | analyst must correlate with threads, traces, and other evidence |
 | RWX heuristic false positive | evidence, confidence, process/range context, explicit caveat | analyst correlation with bytes and behavior remains required |
 | network observation misclassified as malicious | public endpoints are informational; only unattributed wildcard listeners receive low severity | provider output and historical sockets still require timeline/context validation |
 | decompression bomb | archive uploads unsupported | future archive support needs a dedicated extractor |

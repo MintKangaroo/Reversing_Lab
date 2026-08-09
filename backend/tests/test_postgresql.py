@@ -21,6 +21,7 @@ from reversing_lab.database.repository import (
     BinaryRepository,
     BookmarkRepository,
     CtfWorkspaceRepository,
+    MemoryDumpRepository,
     ProjectRepository,
 )
 from reversing_lab.database.retention import RetentionRepository
@@ -40,6 +41,9 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
         ("binaries", "size"),
         ("analysis_artifacts", "size"),
         ("memory_dumps", "size"),
+        ("memory_region_artifacts", "size"),
+        ("memory_region_artifacts", "start_address"),
+        ("memory_region_artifacts", "end_address"),
         ("user_annotations", "address"),
         ("bookmarks", "address"),
         ("ctf_notes", "address"),
@@ -51,7 +55,7 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
 
     with engine.connect() as connection:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-    assert revision == "0005_audit_events"
+    assert revision == "0006_memory_region_artifacts"
 
     for table_name in (
         "projects",
@@ -61,6 +65,7 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
         "analysis_artifacts",
         "analysis_jobs",
         "memory_dumps",
+        "memory_region_artifacts",
         "dynamic_analysis_runs",
         "ctf_workspaces",
     ):
@@ -178,11 +183,37 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
             assert first.sha256 == second.sha256
             assert first_repo.display_filename(first.sha256) == "owner-one.elf"
             assert second_repo.display_filename(second.sha256) == "owner-two.elf"
+
+            memory_repo = MemoryDumpRepository(session, "analyst-one", False)
+            memory_dump = memory_repo.save(
+                b"PAGEDUMP" + b"\x00" * 64,
+                "postgres-contract.dmp",
+                "windows-memory-dump",
+            )
+            region_bytes = b"\x48\x31\xc0\xc3" + b"\x00" * 4092
+            region_start = 0x7FF7_1234_0000
+            region = memory_repo.save_region_artifact(
+                memory_dump.id,
+                pid=4248,
+                start_address=region_start,
+                end_address=region_start + len(region_bytes) - 1,
+                architecture="x86_64",
+                provider="volatility3",
+                data=region_bytes,
+            )
+            assert region.start_address == region_start
+            assert region.end_address == region_start + len(region_bytes) - 1
+            assert memory_repo.read_region_artifact(region) == region_bytes
+            with pytest.raises(BinaryNotFoundError):
+                MemoryDumpRepository(session, "analyst-two", False).get_region_artifact(
+                    memory_dump.id, region.id
+                )
         finally:
             settings.storage_dir = previous_storage
 
         preview = RetentionRepository(session, "analyst-one").preview(True)
         assert preview["counts"]["annotations"] == 1
+        assert preview["counts"]["memory_region_artifacts"] == 1
         retained = RetentionRepository(session, "analyst-one").purge(True)
         assert retained["deleted_counts"]["projects"] == 1
         assert retained["binary_records_deleted"] == 0

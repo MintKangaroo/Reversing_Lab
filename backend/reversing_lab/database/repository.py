@@ -32,6 +32,7 @@ from .models import (
     CtfWorkspaceRecord,
     DynamicAnalysisRunRecord,
     MemoryDumpRecord,
+    MemoryRegionArtifactRecord,
     ProjectRecord,
     ProjectSampleRecord,
     UserAnnotationRecord,
@@ -686,6 +687,9 @@ class MemoryDumpRepository(_OwnedRepository):
         super().__init__(session, owner_id, unrestricted)
         self._storage_dir = get_settings().storage_dir.parent / "memory"
         self._artifact_dir = get_settings().storage_dir.parent / "memory-artifacts"
+        self._region_artifact_dir = (
+            get_settings().storage_dir.parent / "memory-region-artifacts"
+        )
 
     def save(self, data: bytes, filename: str, dump_format: str) -> MemoryDumpRecord:
         sha256 = hashlib.sha256(data).hexdigest()
@@ -733,6 +737,101 @@ class MemoryDumpRepository(_OwnedRepository):
         record.analysis_provider = provider
         self._session.commit()
         return record
+
+    def save_region_artifact(
+        self,
+        dump_id: str,
+        *,
+        pid: int,
+        start_address: int,
+        end_address: int,
+        architecture: str,
+        provider: str,
+        data: bytes,
+    ) -> MemoryRegionArtifactRecord:
+        dump = self.get(dump_id)
+        limit = get_settings().max_memory_region_extract_bytes
+        if not data or len(data) > limit:
+            raise ValueError("Extracted memory region violates the configured size bound.")
+        digest = hashlib.sha256(data).hexdigest()
+        statement = select(MemoryRegionArtifactRecord).where(
+            MemoryRegionArtifactRecord.owner_id == dump.owner_id,
+            MemoryRegionArtifactRecord.memory_dump_id == dump.id,
+            MemoryRegionArtifactRecord.pid == pid,
+            MemoryRegionArtifactRecord.start_address == start_address,
+            MemoryRegionArtifactRecord.architecture == architecture,
+            MemoryRegionArtifactRecord.content_sha256 == digest,
+        )
+        existing = self._session.scalar(statement)
+        if existing is not None:
+            return existing
+        self._region_artifact_dir.mkdir(parents=True, exist_ok=True)
+        path = self._region_artifact_dir / f"{digest}.bin"
+        if not path.exists():
+            path.write_bytes(data)
+        record = MemoryRegionArtifactRecord(
+            id=str(uuid4()),
+            owner_id=dump.owner_id,
+            memory_dump_id=dump.id,
+            pid=pid,
+            start_address=start_address,
+            end_address=end_address,
+            architecture=architecture,
+            provider=provider,
+            content_sha256=digest,
+            size=len(data),
+            storage_path=str(path),
+        )
+        self._session.add(record)
+        self._session.commit()
+        return record
+
+    def get_region_artifact(
+        self, dump_id: str, artifact_id: str
+    ) -> MemoryRegionArtifactRecord:
+        self.get(dump_id)
+        statement = select(MemoryRegionArtifactRecord).where(
+            MemoryRegionArtifactRecord.id == artifact_id,
+            MemoryRegionArtifactRecord.memory_dump_id == dump_id,
+        )
+        statement = self._read_scope(statement, MemoryRegionArtifactRecord)
+        record = self._session.scalar(statement)
+        if record is None:
+            raise BinaryNotFoundError(
+                f"No memory region artifact with id {artifact_id!r}."
+            )
+        return record
+
+    def list_region_artifacts(
+        self, dump_id: str, limit: int = 200
+    ) -> list[MemoryRegionArtifactRecord]:
+        self.get(dump_id)
+        statement = (
+            select(MemoryRegionArtifactRecord)
+            .where(MemoryRegionArtifactRecord.memory_dump_id == dump_id)
+            .order_by(MemoryRegionArtifactRecord.created_at.desc())
+            .limit(limit)
+        )
+        statement = self._read_scope(statement, MemoryRegionArtifactRecord)
+        return list(self._session.scalars(statement))
+
+    def read_region_artifact(self, record: MemoryRegionArtifactRecord) -> bytes:
+        path = Path(record.storage_path).resolve()
+        expected_parent = self._region_artifact_dir.resolve()
+        if (
+            path.parent != expected_parent
+            or path.name != f"{record.content_sha256}.bin"
+            or not path.is_file()
+        ):
+            raise ValueError("Memory region artifact path failed validation.")
+        data = path.read_bytes()
+        if (
+            len(data) != record.size
+            or len(data) > get_settings().max_memory_region_extract_bytes
+            or hashlib.sha256(data).hexdigest() != record.content_sha256
+        ):
+            raise ValueError("Memory region artifact integrity validation failed.")
+        return data
 
 
 class DynamicRunRepository(_OwnedRepository):
