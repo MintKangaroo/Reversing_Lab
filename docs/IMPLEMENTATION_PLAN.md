@@ -174,3 +174,12 @@ model and external signed/WORM archival boundary are documented explicitly.
 Verification passed 118 default backend tests plus the PostgreSQL 16 repository
 contract, 16 frontend tests, the Vite production build, zero-vulnerability npm audit,
 and focused Ruff checks for the new exporter/route/tests.
+
+Memory-normalization follow-up on 2026-08-09: the fixed Volatility execution plan now
+normalizes `windows.pslist.PsList`, `windows.dlllist.DllList`, and
+`windows.vadinfo.VadInfo` independently. Bounded loaded-module and VAD records are
+available through paginated APIs and dedicated workbench tabs. Writable-executable and
+private executable unmapped regions produce evidence-linked heuristic findings with
+false-positive caveats. Verification passed 123 default backend tests (plus one
+PostgreSQL-only skip), 17 frontend tests, the Vite production build, zero-vulnerability
+npm audit, and focused Ruff checks for the new adapter/models/tests.

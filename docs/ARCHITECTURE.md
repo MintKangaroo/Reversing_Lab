@@ -68,7 +68,12 @@ api → analysis/analyzer/disassembler/decompiler/memory/dynamic → parser.mode
 3. a DB-backed job performs basic data-only triage.
 4. if explicitly requested and available, the adapter runs only server-selected
    Volatility plugins.
-5. large results are gzip JSON artifacts, not one row per string/region.
+5. `pslist`, `dlllist`, and `vadinfo` outputs are independently normalized into
+   bounded process, loaded-module, and region records; one plugin failure does not
+   discard successful sibling results.
+6. VAD permissions and mapping provenance produce reviewable RWX/private-executable
+   heuristic findings with explicit false-positive caveats.
+7. large results are gzip JSON artifacts, not one row per module/string/region.
 
 ### Dynamic analysis
 
@@ -151,8 +156,9 @@ Decompiler output is explicitly estimated C-like code, never claimed as original
 ## Performance controls
 
 Settings cap upload sizes, instructions, functions, CFG/call graph nodes, strings,
-YARA matches, dynamic events, job concurrency, analysis/decompiler time, and external
-output. The API paginates functions, hex, memory processes/regions, and dynamic events.
+YARA matches, memory processes/modules/regions/findings, dynamic events, job
+concurrency, analysis/decompiler time, and external output. The API paginates
+functions, hex, memory processes/modules/regions, and dynamic events.
 Large UI tables use windowed rendering.
 
 ## Technology decisions

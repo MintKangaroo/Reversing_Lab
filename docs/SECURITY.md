@@ -46,16 +46,20 @@ anchor or sign exports in an independently controlled system.
 ## Parsing and analysis controls
 
 Parsers wrap malformed library inputs in typed errors. Settings bound functions,
-instructions, graph nodes, strings, events, output sizes, elapsed time, and concurrent
-jobs. A clean heuristic result is not a safety verdict.
+instructions, graph nodes, strings, memory processes/modules/regions/findings, events,
+output sizes, elapsed time, and concurrent jobs. A clean heuristic result is not a
+safety verdict.
 
 ## External tools
 
 Ghidra decompile, UPX unpack, and Volatility calls use fixed executable resolution and
 argument vectors, `shell=False`, timeouts, private temporary directories, bounded
 structured output, and sanitized environments. Volatility plugin names are chosen by
-server code from an allowlist. UPX is explicit opt-in, never overwrites the original,
-and records both hashes and size/section changes.
+server code from an allowlist. Process, DLL, and VAD plugins fail independently;
+external output is normalized as untrusted data and each result retains its provider.
+RWX/private-executable VAD findings are heuristic and explicitly identify common JIT,
+instrumentation, and compatibility-layer false positives. UPX is explicit opt-in,
+never overwrites the original, and records both hashes and size/section changes.
 
 Legacy whole-binary integration adapters are optional and should be placed in an
 additional process/container boundary for hostile production workloads. No optional
