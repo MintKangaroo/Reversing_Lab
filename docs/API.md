@@ -79,6 +79,7 @@ allowlisted by Pydantic.
 | Method | Endpoint | Behavior |
 |---|---|---|
 | GET | `/audit-events?offset=0&limit=100` | principal-scoped page; admins can inspect all principals |
+| GET | `/audit-events/export` | bounded, oldest-first hash-chained JSONL stream |
 | GET | `/retention/preview?include_binary_access=false` | counts current-principal records without deleting |
 | POST | `/retention/purge` | deletes current-principal mutable state after exact confirmation |
 
@@ -88,6 +89,12 @@ Audit filters are `action`, `resource_type`, and `outcome=succeeded|denied|faile
 purges another owner implicitly, even for admins, and it retains audit events. Active
 owned jobs return 409. Including binary access deletes physical hash content only if no
 grant or analysis reference remains.
+
+Audit export accepts the same exact-value filters plus timezone-aware `created_after`
+(inclusive) and `created_before` (exclusive). Naive timestamps are rejected. Exports
+above `RLAB_MAX_AUDIT_EXPORT_RECORDS` return 413 and require a narrower UTC range. The
+response includes `X-Audit-Export-Records`, `nosniff`, and an attachment filename.
+JSONL format and verification are documented in [AUDIT_LOGGING.md](AUDIT_LOGGING.md).
 
 ## Errors
 

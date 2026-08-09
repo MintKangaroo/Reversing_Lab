@@ -24,6 +24,12 @@ never deletes audit rows. This is application-level append-only behavior, not a
 cryptographically sealed ledger; ship events to independent append-only storage for a
 strong operational audit boundary.
 
+The JSONL export preserves principal scope, requires timezone-aware range filters, and
+is rejected before streaming when its record count exceeds the configured cap. Its
+export-time hash chain detects changes inside a completed exported file. Since the
+application itself creates that chain, it cannot establish source-database integrity;
+anchor or sign exports in an independently controlled system.
+
 ## Upload and storage controls
 
 - binary and memory uploads stop reading as soon as their configured byte limit is

@@ -10,8 +10,8 @@ finding, 메모리 트리아지, 격리형 동적 분석 제어, CTF 노트와 �
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-117_passing-3fb950)
-![Frontend tests](https://img.shields.io/badge/frontend_tests-15_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-118_passing-3fb950)
+![Frontend tests](https://img.shields.io/badge/frontend_tests-16_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ![Reversing Lab dashboard](docs/screenshots/01-dashboard.png)
@@ -39,7 +39,7 @@ docker compose up --build
 3. `Call Graph`, `Program Flow`, `Packing`, `Obfuscation`에서 근거와 confidence를 검토합니다.
 4. 오른쪽 Inspector에 함수 이름, 코멘트와 bookmark를 기록합니다.
 5. `Reports`에서 JSON, Markdown 또는 HTML 보고서를 내려받습니다.
-6. `Settings`에서 최근 변경 감사 기록과 내 데이터 정리 dry-run을 확인합니다.
+6. `Settings`에서 최근 변경 감사 기록을 JSONL로 내보내거나 내 데이터 정리 dry-run을 확인합니다.
 
 주소는 UI에서 `0x...`로 표시됩니다. Pseudo-C는 원본 소스가 아니라 보수적인 추정 결과이며,
 각 finding에는 verified/heuristic/inferred provenance와 false-positive 주의 사항이 표시됩니다.
@@ -78,7 +78,7 @@ docker compose up --build
 | 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
 | 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
 | 저장·보고 | content-addressed storage, DB-backed jobs, JSON/Markdown/HTML export |
-| 운영 | Alembic migration, optional API-key roles, owner scope, append-only audit metadata, dry-run retention |
+| 운영 | Alembic migration, API-key roles, owner scope, hash-chained JSONL audit export, dry-run retention |
 
 ## 로컬 개발 실행
 
@@ -140,6 +140,10 @@ resource 식별자만 감사 이벤트로 저장됩니다. 요청 본문, bearer
 job이 있으면 차단됩니다. Binary access grant를 함께 지워도 다른 참조가 남은 hash 파일은
 보존됩니다.
 
+감사 export는 manifest, 오래된 순서의 event, completeness footer로 구성되며 export 시점에
+SHA-256 hash chain을 계산합니다. 외부 archive로 옮긴 뒤 파일 내부 변조·누락을 확인하는
+보조 수단이며, 원본 DB가 변조되지 않았다는 증명이나 외부 신뢰 anchor는 아닙니다.
+
 ![Authentication gate](docs/screenshots/16-authentication.png)
 
 ## 외부 도구
@@ -193,7 +197,7 @@ cd backend && ../.venv/bin/pytest
 cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 기준은 SQLite backend 117개와 PostgreSQL 계약 1개, frontend 15개 테스트 통과,
+현재 기준은 SQLite backend 118개와 PostgreSQL 계약 1개, frontend 16개 테스트 통과,
 production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지
 않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend build/audit,
 Alembic drift와 whitespace를 검사합니다.
@@ -211,6 +215,7 @@ Alembic drift와 whitespace를 검사합니다.
 ## 문서와 로드맵
 
 - [API](docs/API.md) · [Architecture](docs/ARCHITECTURE.md) · [Development](docs/DEVELOPMENT.md)
+- [Audit logging](docs/AUDIT_LOGGING.md)
 - [Security](docs/SECURITY.md) · [Threat model](docs/THREAT_MODEL.md) · [Authentication](docs/AUTHENTICATION.md)
 - [Decompilation](docs/DECOMPILATION.md) · [Memory](docs/MEMORY_ANALYSIS.md) · [Dynamic](docs/DYNAMIC_ANALYSIS.md)
 - [Roadmap](docs/ROADMAP.md) · [Implementation record](docs/IMPLEMENTATION_PLAN.md)
