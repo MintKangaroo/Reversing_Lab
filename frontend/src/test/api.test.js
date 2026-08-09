@@ -91,6 +91,32 @@ describe('API client', () => {
     );
   });
 
+  it('uses a fixed acknowledged contract for memory region inspection', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({
+      body: { id: 'region-job-1', state: 'queued' },
+    }));
+
+    await api.inspectMemoryRegion(
+      'dump-1',
+      { pid: 44, start: 4096 },
+      'x86_64',
+    );
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/memory-dumps/dump-1/regions/inspect',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pid: 44,
+          start_address: 4096,
+          architecture: 'x86_64',
+          acknowledged: true,
+        }),
+      },
+    );
+  });
+
   it('downloads a filtered audit JSONL export', async () => {
     global.fetch = vi.fn().mockResolvedValue(response({
       body: '{"type":"footer","complete":true}',

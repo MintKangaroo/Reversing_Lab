@@ -159,6 +159,27 @@ export const api = {
   memoryProcesses: (id) => request(`/memory-dumps/${id}/processes`),
   memoryModules: (id) => request(`/memory-dumps/${id}/modules`),
   memoryRegions: (id) => request(`/memory-dumps/${id}/regions`),
+  inspectMemoryRegion: (id, region, architecture = 'x86_64') =>
+    request(`/memory-dumps/${id}/regions/inspect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pid: region.pid,
+        start_address: region.start,
+        architecture,
+        acknowledged: true,
+      }),
+    }),
+  memoryRegionArtifacts: (id) => request(`/memory-dumps/${id}/region-artifacts`),
+  memoryRegionHex: (id, artifactId, offset = 0, length = 256) =>
+    request(`/memory-dumps/${id}/region-artifacts/${artifactId}/hex?offset=${offset}&length=${length}`),
+  memoryRegionDisassembly: (id, artifactId, offset = 0, count = 200) =>
+    request(`/memory-dumps/${id}/region-artifacts/${artifactId}/disassembly?offset=${offset}&count=${count}`),
+  downloadMemoryRegionArtifact: (id, artifact) =>
+    download(
+      `/memory-dumps/${id}/region-artifacts/${artifact.id}/download`,
+      `memory-region-${artifact.content_sha256.slice(0, 12)}.bin`,
+    ),
   memoryNetwork: (id, params = {}) => {
     const query = new URLSearchParams(params);
     return request(`/memory-dumps/${id}/network${query.size ? `?${query}` : ''}`);

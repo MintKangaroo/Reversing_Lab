@@ -13,6 +13,11 @@ vi.mock('../api.js', () => ({
     memoryProcesses: vi.fn(),
     memoryModules: vi.fn(),
     memoryRegions: vi.fn(),
+    inspectMemoryRegion: vi.fn(),
+    memoryRegionArtifacts: vi.fn(),
+    memoryRegionHex: vi.fn(),
+    memoryRegionDisassembly: vi.fn(),
+    downloadMemoryRegionArtifact: vi.fn(),
     memoryNetwork: vi.fn(),
     memoryFindings: vi.fn(),
   },
@@ -32,9 +37,11 @@ beforeEach(() => {
   api.startMemoryAnalysis.mockResolvedValue({
     id: 'job-1', state: 'queued', progress: 0, message: 'Queued', error: null,
   });
-  api.job.mockResolvedValue({
-    id: 'job-1', state: 'completed', progress: 100, message: 'Completed', error: null,
-  });
+  api.job.mockImplementation((id) => Promise.resolve(id === 'region-job-1' ? {
+    id, state: 'completed', progress: 100, message: 'Inspection complete', error: null, result_ref: 'artifact-1',
+  } : {
+    id, state: 'completed', progress: 100, message: 'Completed', error: null,
+  }));
   api.memorySummary.mockResolvedValue({
     provider: 'volatility3',
     metadata: { os_guess: 'Windows' },
@@ -70,6 +77,7 @@ beforeEach(() => {
       pid: 44, start: 0x1000, end: 0x1fff, start_hex: '0x1000', end_hex: '0x1fff', protection: 'PAGE_EXECUTE_READWRITE',
       private_memory: true, mapped_file: null, suspicious: true,
       reason: 'Writable and executable memory region (heuristic).',
+      source_provider: 'volatility3',
     }],
     total: 1,
   });
@@ -84,6 +92,24 @@ beforeEach(() => {
     total: 1,
   });
   api.memoryFindings.mockResolvedValue([{ id: 'finding-1', title: 'Writable and executable memory region', severity: 'high', confidence: 0.9, summary: 'Review this region.', evidence: ['PID 44 at 0x1000.'], false_positive_note: 'JIT runtimes may create this mapping.' }]);
+  api.inspectMemoryRegion.mockResolvedValue({
+    id: 'region-job-1', state: 'queued', progress: 0, message: 'Queued', error: null,
+  });
+  api.memoryRegionArtifacts.mockResolvedValue([{
+    id: 'artifact-1', pid: 44, start_hex: '0x1000', end_hex: '0x1fff',
+    architecture: 'x86_64', size: 4096, content_sha256: 'b'.repeat(64), provider: 'volatility3',
+  }]);
+  api.memoryRegionHex.mockResolvedValue({
+    offset: 0, length: 16, total_size: 4096, base_address_hex: '0x1000',
+    rows: [{ offset: 0, address_hex: '0x1000', hex_bytes: ['48', '31', 'c0', 'c3'], ascii: 'H1..' }],
+  });
+  api.memoryRegionDisassembly.mockResolvedValue({
+    architecture: 'x86_64', instruction_count: 2, truncated: false,
+    instructions: [
+      { address_hex: '0x1000', bytes_hex: '4831c0', mnemonic: 'xor', op_str: 'rax, rax' },
+      { address_hex: '0x1003', bytes_hex: 'c3', mnemonic: 'ret', op_str: '' },
+    ],
+  });
 });
 
 it('loads normalized Volatility modules, regions, warnings, and evidence', async () => {
@@ -110,6 +136,18 @@ it('loads normalized Volatility modules, regions, warnings, and evidence', async
   fireEvent.click(screen.getByRole('button', { name: 'regions (1)' }));
   expect(screen.getByText('PAGE_EXECUTE_READWRITE')).toBeVisible();
   expect(screen.getByText(/Writable and executable memory region/)).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+  const acknowledgement = screen.getByRole('checkbox', { name: /I understand this creates/ });
+  const inspect = screen.getByRole('button', { name: 'Extract & inspect' });
+  expect(inspect).toBeDisabled();
+  fireEvent.click(acknowledgement);
+  expect(inspect).toBeEnabled();
+  fireEvent.click(inspect);
+  await waitFor(() => expect(api.inspectMemoryRegion).toHaveBeenCalledWith(
+    'dump-1', expect.objectContaining({ pid: 44, start: 0x1000 }), 'x86_64',
+  ));
+  expect(await screen.findByText('Region artifact ready', {}, { timeout: 2000 })).toBeVisible();
+  expect(screen.getByText('rax, rax')).toBeVisible();
 
   fireEvent.click(screen.getByRole('button', { name: 'network (1)' }));
   expect(screen.getByText('1.1.1.1:443')).toBeVisible();
