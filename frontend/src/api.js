@@ -157,6 +157,7 @@ export const api = {
     }),
   memorySummary: (id) => request(`/memory-dumps/${id}/analysis`),
   memoryProcesses: (id) => request(`/memory-dumps/${id}/processes`),
+  memoryModules: (id) => request(`/memory-dumps/${id}/modules`),
   memoryRegions: (id) => request(`/memory-dumps/${id}/regions`),
   memoryFindings: (id) => request(`/memory-dumps/${id}/findings`),
   jobs: () => request('/jobs'),
