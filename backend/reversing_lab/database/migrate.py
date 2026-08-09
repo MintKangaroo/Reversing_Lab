@@ -19,6 +19,7 @@ _OWNED_TABLES = {
     "analysis_artifacts",
     "analysis_jobs",
     "memory_dumps",
+    "memory_region_artifacts",
     "dynamic_analysis_runs",
     "ctf_workspaces",
 }
@@ -26,6 +27,9 @@ _PORTABLE_BIGINT_COLUMNS = {
     ("binaries", "size"),
     ("analysis_artifacts", "size"),
     ("memory_dumps", "size"),
+    ("memory_region_artifacts", "size"),
+    ("memory_region_artifacts", "start_address"),
+    ("memory_region_artifacts", "end_address"),
     ("user_annotations", "address"),
     ("bookmarks", "address"),
     ("ctf_notes", "address"),
@@ -46,10 +50,12 @@ def _legacy_revision(database_url: str) -> str:
         inspector = inspect(engine)
         actual_tables = set(inspector.get_table_names())
         expected_tables = set(Base.metadata.tables)
-        pre_audit_tables = expected_tables - {"audit_events"}
+        pre_region_artifact_tables = expected_tables - {"memory_region_artifacts"}
+        pre_audit_tables = pre_region_artifact_tables - {"audit_events"}
         pre_ownership_tables = pre_audit_tables - {"binary_access"}
         if (
             actual_tables != expected_tables
+            and actual_tables != pre_region_artifact_tables
             and actual_tables != pre_audit_tables
             and actual_tables != pre_ownership_tables
         ):
@@ -60,9 +66,14 @@ def _legacy_revision(database_url: str) -> str:
                 f"missing={missing}, unexpected={unexpected}."
             )
 
-        audit_events_present = actual_tables == expected_tables
+        region_artifacts_present = actual_tables == expected_tables
+        audit_events_present = frozenset(actual_tables) in {
+            frozenset(expected_tables),
+            frozenset(pre_region_artifact_tables),
+        }
         resource_ownership_present = frozenset(actual_tables) in {
             frozenset(expected_tables),
+            frozenset(pre_region_artifact_tables),
             frozenset(pre_audit_tables),
         }
         project_owner_present = True
@@ -95,6 +106,8 @@ def _legacy_revision(database_url: str) -> str:
                 ):
                     portable_bigints = False
 
+        if region_artifacts_present:
+            return "0006_memory_region_artifacts"
         if audit_events_present:
             return "0005_audit_events"
         if resource_ownership_present:

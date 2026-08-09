@@ -104,6 +104,7 @@ def runtime_configuration() -> RuntimeConfigurationSchema:
         limits=AnalysisLimitsSchema(
             max_upload_bytes=settings.max_upload_bytes,
             max_memory_dump_bytes=settings.max_memory_dump_bytes,
+            max_memory_region_extract_bytes=settings.max_memory_region_extract_bytes,
             max_disassembly_instructions=settings.max_disassembly_instructions,
             max_functions=settings.max_functions,
             max_cfg_nodes=settings.max_cfg_nodes,

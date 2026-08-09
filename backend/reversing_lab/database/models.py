@@ -246,6 +246,42 @@ class MemoryDumpRecord(Base):
     )
 
 
+class MemoryRegionArtifactRecord(Base):
+    """Metadata index for an explicitly extracted process VAD."""
+
+    __tablename__ = "memory_region_artifacts"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "memory_dump_id",
+            "pid",
+            "start_address",
+            "architecture",
+            "content_sha256",
+            name="uq_memory_region_artifact_content",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(
+        String(128), default=DEFAULT_OWNER_ID, nullable=False, index=True
+    )
+    memory_dump_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("memory_dumps.id"), nullable=False, index=True
+    )
+    pid: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    start_address: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    end_address: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    architecture: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
 class DynamicAnalysisRunRecord(Base):
     """Metadata/index for one sandbox-provider invocation."""
 

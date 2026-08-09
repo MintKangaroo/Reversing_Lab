@@ -45,6 +45,16 @@ class VolatilityResult:
     network: tuple[MemoryNetworkArtifact, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class RegionExtraction:
+    data: bytes
+    pid: int
+    start: int
+    end: int
+    process_name: str | None
+    provider: str
+
+
 def _column_key(value: object) -> str:
     return "".join(character for character in str(value).lower() if character.isalnum())
 
@@ -423,6 +433,141 @@ class VolatilityAdapter:
                 raise IntegrationUnavailableError(
                     f"Volatility plugin {plugin} returned malformed JSON."
                 ) from exc
+
+    def extract_region(
+        self,
+        dump_path: Path,
+        *,
+        pid: int,
+        address: int,
+        max_bytes: int,
+    ) -> RegionExtraction:
+        """Extract one exact VAD through fixed VadInfo arguments and a private output dir."""
+        if pid < 0 or pid > 2**32 - 1:
+            raise ValueError("PID is outside the supported range.")
+        if address < 0 or address > 2**63 - 1:
+            raise ValueError("Region address is outside the supported range.")
+        configured_limit = get_settings().max_memory_region_extract_bytes
+        if max_bytes < 1 or max_bytes > configured_limit:
+            raise ValueError("Region extraction size exceeds the configured bound.")
+        executable = self.executable()
+        if executable is None:
+            raise IntegrationUnavailableError(
+                "Volatility 3 is not installed or configured."
+            )
+        settings = get_settings()
+        plugin = "windows.vadinfo.VadInfo"
+        with tempfile.TemporaryDirectory(prefix="rlab-volatility-region-") as temporary:
+            temporary_path = Path(temporary)
+            output_dir = temporary_path / "output"
+            output_dir.mkdir(mode=0o700)
+            stdout_path = temporary_path / "stdout.json"
+            stderr_path = temporary_path / "stderr.log"
+            command = [
+                str(executable),
+                "-f",
+                str(dump_path.resolve()),
+                "-o",
+                str(output_dir),
+                "-r",
+                "json",
+                plugin,
+                "--pid",
+                str(pid),
+                "--address",
+                str(address),
+                "--dump",
+                "--maxsize",
+                str(max_bytes),
+            ]
+            with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+                try:
+                    completed = subprocess.run(
+                        command,
+                        stdin=subprocess.DEVNULL,
+                        stdout=stdout,
+                        stderr=stderr,
+                        timeout=settings.max_analysis_seconds,
+                        check=False,
+                        shell=False,
+                        env={"PATH": str(executable.parent), "LANG": "C.UTF-8"},
+                    )
+                except subprocess.TimeoutExpired as exc:
+                    raise IntegrationUnavailableError(
+                        "Volatility memory-region extraction timed out."
+                    ) from exc
+            if completed.returncode != 0:
+                detail = stderr_path.read_bytes()[-2_000:].decode(
+                    "utf-8", errors="replace"
+                )
+                raise IntegrationUnavailableError(
+                    "Volatility memory-region extraction failed: "
+                    f"{detail or 'no output'}."
+                )
+            if stdout_path.stat().st_size > settings.max_external_output_bytes:
+                raise IntegrationUnavailableError(
+                    "Volatility memory-region metadata exceeded the output limit."
+                )
+            try:
+                payload = json.loads(stdout_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise IntegrationUnavailableError(
+                    "Volatility memory-region extraction returned malformed JSON."
+                ) from exc
+
+            matches: list[tuple[dict[str, object], int, int, str]] = []
+            for row in _rows(payload):
+                row_pid = _integer(_value(row, "PID", "Pid"))
+                start = _integer(_value(row, "Start VPN", "Start", "StartAddress"))
+                end = _integer(_value(row, "End VPN", "End", "EndAddress"))
+                file_output = _text(_value(row, "File output", "FileOutput"))
+                if (
+                    row_pid == pid
+                    and start == address
+                    and end is not None
+                    and end >= start
+                    and file_output is not None
+                ):
+                    matches.append((row, start, end, file_output))
+            if len(matches) != 1:
+                raise IntegrationUnavailableError(
+                    "Volatility did not return exactly one requested VAD artifact."
+                )
+            row, start, end, file_output = matches[0]
+            expected_size = end - start + 1
+            if expected_size > max_bytes:
+                raise IntegrationUnavailableError(
+                    "The requested VAD exceeds the configured extraction limit."
+                )
+            filename = Path(file_output.replace("\\", "/")).name
+            candidate = output_dir / filename
+            if (
+                not filename
+                or candidate.is_symlink()
+                or candidate.resolve().parent != output_dir.resolve()
+                or not candidate.is_file()
+            ):
+                raise IntegrationUnavailableError(
+                    "Volatility returned an invalid region artifact path."
+                )
+            size = candidate.stat().st_size
+            if size < 1 or size > max_bytes or size != expected_size:
+                raise IntegrationUnavailableError(
+                    "Volatility region artifact violated the expected size bound."
+                )
+            data = candidate.read_bytes()
+            if len(data) != size:
+                raise IntegrationUnavailableError(
+                    "Volatility region artifact changed while it was being read."
+                )
+            return RegionExtraction(
+                data=data,
+                pid=pid,
+                start=start,
+                end=end,
+                process_name=_text(_value(row, "Process", "ImageFileName")),
+                provider=self.name,
+            )
 
     def analyze(self, dump_path: Path) -> VolatilityResult:
         """Run only server-selected plugins; callers cannot supply plugin names."""

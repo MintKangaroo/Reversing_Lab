@@ -7,13 +7,19 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 
+from ...analyzer import hex_page
 from ...config import get_settings
 from ...database import JobRepository, MemoryDumpRepository
 from ...database.session import get_session_factory
 from ...jobs import submit_job
-from ...memory import analyze_memory, detect_dump_format
+from ...memory import (
+    VolatilityAdapter,
+    analyze_memory,
+    detect_dump_format,
+    disassemble_region,
+)
 from ..dependencies import get_job_repository, get_memory_dump_repository
 from ..schemas import (
     JobSchema,
@@ -27,6 +33,12 @@ from ..schemas import (
     MemoryNetworkArtifactSchema,
     MemoryProcessPageSchema,
     MemoryProcessSchema,
+    MemoryRegionArtifactSchema,
+    MemoryRegionDisassemblySchema,
+    MemoryRegionHexPageSchema,
+    MemoryRegionHexRowSchema,
+    MemoryRegionInspectionRequestSchema,
+    MemoryRegionInstructionSchema,
     MemoryRegionPageSchema,
     MemoryRegionSchema,
 )
@@ -191,6 +203,224 @@ def memory_regions(
         total=len(items),
         offset=offset,
         limit=limit,
+    )
+
+
+def _validated_dump_path(record) -> Path | None:
+    path = Path(record.storage_path).resolve()
+    expected_parent = (get_settings().storage_dir.parent / "memory").resolve()
+    if path.parent != expected_parent or path.name != record.sha256 or not path.is_file():
+        return None
+    return path
+
+
+@router.post(
+    "/{dump_id}/regions/inspect", response_model=JobSchema, status_code=202
+)
+def inspect_memory_region(
+    dump_id: str,
+    payload: MemoryRegionInspectionRequestSchema,
+    dumps: MemoryDumpRepository = Depends(get_memory_dump_repository),
+    jobs: JobRepository = Depends(get_job_repository),
+) -> JobSchema:
+    dump = dumps.get(dump_id)
+    if dump.dump_format != "windows-memory-dump":
+        raise HTTPException(
+            status_code=409,
+            detail="Region extraction currently requires a Windows full memory dump.",
+        )
+    dump_path = _validated_dump_path(dump)
+    if dump_path is None:
+        raise HTTPException(status_code=409, detail="Memory dump path failed validation.")
+    analysis = _result(dump)
+    region = next(
+        (
+            item
+            for item in analysis.get("regions", [])
+            if item.get("pid") == payload.pid
+            and item.get("start") == payload.start_address
+        ),
+        None,
+    )
+    if region is None:
+        raise HTTPException(
+            status_code=422,
+            detail="The requested PID and address do not identify a normalized VAD.",
+        )
+    if region.get("source_provider") != VolatilityAdapter.name:
+        raise HTTPException(
+            status_code=409,
+            detail="The selected region was not reported by the Volatility provider.",
+        )
+    end = region.get("end")
+    if not isinstance(end, int) or end < payload.start_address:
+        raise HTTPException(status_code=500, detail="Stored VAD range is invalid.")
+    size = end - payload.start_address + 1
+    limit = get_settings().max_memory_region_extract_bytes
+    if size > limit:
+        raise HTTPException(
+            status_code=422,
+            detail=f"The selected VAD exceeds the {limit}-byte extraction limit.",
+        )
+    adapter = VolatilityAdapter()
+    if not adapter.is_available():
+        raise HTTPException(
+            status_code=409,
+            detail="Volatility 3 is unavailable; region extraction is disabled.",
+        )
+    job = jobs.create(
+        "memory-region-inspection",
+        f"{dump_id}:{payload.pid}:{payload.start_address:x}",
+    )
+
+    def task(context) -> str:
+        context.update(15, "Extracting the allowlisted VAD")
+        extracted = VolatilityAdapter().extract_region(
+            dump_path,
+            pid=payload.pid,
+            address=payload.start_address,
+            max_bytes=limit,
+        )
+        if extracted.start != payload.start_address or extracted.end != end:
+            raise ValueError("Volatility returned a different VAD than requested.")
+        context.update(72, "Validating and storing the region artifact")
+        session = get_session_factory()()
+        try:
+            artifact = MemoryDumpRepository(session).save_region_artifact(
+                dump_id,
+                pid=payload.pid,
+                start_address=extracted.start,
+                end_address=extracted.end,
+                architecture=payload.architecture,
+                provider=extracted.provider,
+                data=extracted.data,
+            )
+            return artifact.id
+        finally:
+            session.close()
+
+    submit_job(job.id, task)
+    return JobSchema.model_validate(job)
+
+
+@router.get(
+    "/{dump_id}/region-artifacts", response_model=list[MemoryRegionArtifactSchema]
+)
+def memory_region_artifacts(
+    dump_id: str,
+    limit: int = Query(200, ge=1, le=1_000),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> list[MemoryRegionArtifactSchema]:
+    return [
+        MemoryRegionArtifactSchema.model_validate(item)
+        for item in repository.list_region_artifacts(dump_id, limit)
+    ]
+
+
+def _artifact_bytes(repository: MemoryDumpRepository, dump_id: str, artifact_id: str):
+    record = repository.get_region_artifact(dump_id, artifact_id)
+    try:
+        data = repository.read_region_artifact(record)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=500, detail="Memory region artifact failed integrity validation."
+        ) from exc
+    return record, data
+
+
+@router.get(
+    "/{dump_id}/region-artifacts/{artifact_id}",
+    response_model=MemoryRegionArtifactSchema,
+)
+def memory_region_artifact(
+    dump_id: str,
+    artifact_id: str,
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> MemoryRegionArtifactSchema:
+    return MemoryRegionArtifactSchema.model_validate(
+        repository.get_region_artifact(dump_id, artifact_id)
+    )
+
+
+@router.get(
+    "/{dump_id}/region-artifacts/{artifact_id}/hex",
+    response_model=MemoryRegionHexPageSchema,
+)
+def memory_region_hex(
+    dump_id: str,
+    artifact_id: str,
+    offset: int = Query(0, ge=0),
+    length: int = Query(256, ge=1, le=4_096),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> MemoryRegionHexPageSchema:
+    record, data = _artifact_bytes(repository, dump_id, artifact_id)
+    page = hex_page(data, offset=offset, length=length)
+    return MemoryRegionHexPageSchema(
+        offset=page.offset,
+        length=page.length,
+        total_size=page.total_size,
+        base_address=record.start_address,
+        base_address_hex=f"0x{record.start_address:x}",
+        rows=[
+            MemoryRegionHexRowSchema(
+                offset=row.offset,
+                address=record.start_address + row.offset,
+                address_hex=f"0x{record.start_address + row.offset:x}",
+                hex_bytes=list(row.hex_bytes),
+                ascii=row.ascii,
+            )
+            for row in page.rows
+        ],
+    )
+
+
+@router.get(
+    "/{dump_id}/region-artifacts/{artifact_id}/disassembly",
+    response_model=MemoryRegionDisassemblySchema,
+)
+def memory_region_disassembly(
+    dump_id: str,
+    artifact_id: str,
+    offset: int = Query(0, ge=0),
+    count: int = Query(200, ge=1, le=2_000),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> MemoryRegionDisassemblySchema:
+    record, data = _artifact_bytes(repository, dump_id, artifact_id)
+    result = disassemble_region(
+        data,
+        base_address=record.start_address,
+        architecture=record.architecture,
+        offset=offset,
+        count=count,
+    )
+    return MemoryRegionDisassemblySchema(
+        start_address=result.start_address,
+        start_address_hex=f"0x{result.start_address:x}",
+        architecture=record.architecture,
+        instruction_count=result.instruction_count,
+        truncated=result.truncated,
+        instructions=[
+            MemoryRegionInstructionSchema.model_validate(item)
+            for item in result.instructions
+        ],
+    )
+
+
+@router.get("/{dump_id}/region-artifacts/{artifact_id}/download")
+def download_memory_region_artifact(
+    dump_id: str,
+    artifact_id: str,
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> Response:
+    record, data = _artifact_bytes(repository, dump_id, artifact_id)
+    filename = f"memory-region-{record.content_sha256[:12]}.bin"
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-SHA256": record.content_sha256,
+        },
     )
 
 

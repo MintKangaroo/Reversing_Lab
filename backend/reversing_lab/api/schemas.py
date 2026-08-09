@@ -560,6 +560,7 @@ class ToolingStatusSchema(BaseModel):
 class AnalysisLimitsSchema(BaseModel):
     max_upload_bytes: int
     max_memory_dump_bytes: int
+    max_memory_region_extract_bytes: int
     max_disassembly_instructions: int
     max_functions: int
     max_cfg_nodes: int
@@ -763,6 +764,78 @@ class MemoryRegionPageSchema(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+class MemoryRegionInspectionRequestSchema(BaseModel):
+    pid: int = Field(ge=0, le=2**32 - 1)
+    start_address: int = Field(ge=0, le=_MAX_DATABASE_INTEGER)
+    architecture: Literal["x86", "x86_64"]
+    acknowledged: Literal[True]
+
+
+class MemoryRegionArtifactSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    id: str
+    memory_dump_id: str
+    pid: int
+    start_address: int
+    end_address: int
+    architecture: Literal["x86", "x86_64"]
+    provider: str
+    content_sha256: str
+    size: int
+    created_at: datetime
+
+    @computed_field
+    @property
+    def start_hex(self) -> str:
+        return f"0x{self.start_address:x}"
+
+    @computed_field
+    @property
+    def end_hex(self) -> str:
+        return f"0x{self.end_address:x}"
+
+
+class MemoryRegionHexRowSchema(BaseModel):
+    offset: int
+    address: int
+    address_hex: str
+    hex_bytes: list[str]
+    ascii: str
+
+
+class MemoryRegionHexPageSchema(BaseModel):
+    offset: int
+    length: int
+    total_size: int
+    base_address: int
+    base_address_hex: str
+    rows: list[MemoryRegionHexRowSchema]
+
+
+class MemoryRegionInstructionSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    address: int
+    mnemonic: str
+    op_str: str
+    bytes_hex: str
+    size: int
+    groups: list[str]
+
+    @computed_field
+    @property
+    def address_hex(self) -> str:
+        return f"0x{self.address:x}"
+
+
+class MemoryRegionDisassemblySchema(BaseModel):
+    start_address: int
+    start_address_hex: str
+    architecture: Literal["x86", "x86_64"]
+    instruction_count: int
+    truncated: bool
+    instructions: list[MemoryRegionInstructionSchema]
 
 
 class MemoryNetworkArtifactPageSchema(BaseModel):

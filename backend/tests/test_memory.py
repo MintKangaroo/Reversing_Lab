@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
 from reversing_lab.errors import IntegrationUnavailableError
 from reversing_lab.memory.models import (
     MemoryAnalysisResult,
@@ -17,7 +18,11 @@ from reversing_lab.memory.models import (
     MemoryProcess,
     MemoryRegion,
 )
-from reversing_lab.memory.volatility import VolatilityAdapter, VolatilityResult
+from reversing_lab.memory.volatility import (
+    RegionExtraction,
+    VolatilityAdapter,
+    VolatilityResult,
+)
 
 
 def _wait_for_job(client, job_id: str, terminal=None, timeout: float = 4.0) -> dict:
@@ -216,6 +221,117 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
     assert observed["shell"] is False
     with pytest.raises(ValueError):
         VolatilityAdapter()._run(dump, "windows.evil.Arbitrary")
+
+
+def test_volatility_region_extraction_uses_fixed_bounded_arguments(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from reversing_lab.memory import volatility
+
+    executable = tmp_path / "vol"
+    executable.write_text("# placeholder", encoding="utf-8")
+    executable.chmod(0o700)
+    dump = tmp_path / "authorized.dmp"
+    dump.write_bytes(b"PAGEDUMP" + b"\x00" * 64)
+    monkeypatch.setattr(VolatilityAdapter, "executable", lambda self: executable)
+    monkeypatch.setattr(
+        volatility,
+        "get_settings",
+        lambda: SimpleNamespace(
+            max_analysis_seconds=2,
+            max_external_output_bytes=1024 * 1024,
+            max_memory_region_extract_bytes=4096,
+        ),
+    )
+    observed = {}
+
+    def fake_run(command, **kwargs):
+        observed["command"] = command
+        observed["shell"] = kwargs["shell"]
+        output_dir = Path(command[command.index("-o") + 1])
+        filename = "pid.44.vad.0x1000-0x1fff.dmp"
+        (output_dir / filename).write_bytes(b"\x90" * 4095 + b"\xc3")
+        kwargs["stdout"].write(
+            json.dumps(
+                [
+                    {
+                        "PID": 44,
+                        "Process": "fixture.exe",
+                        "Start VPN": "0x1000",
+                        "End VPN": "0x1fff",
+                        "File output": filename,
+                    }
+                ]
+            ).encode()
+        )
+        kwargs["stdout"].flush()
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(volatility.subprocess, "run", fake_run)
+    extracted = VolatilityAdapter().extract_region(
+        dump, pid=44, address=0x1000, max_bytes=4096
+    )
+
+    assert extracted.data[-1] == 0xC3
+    assert extracted.start == 0x1000
+    assert extracted.end == 0x1FFF
+    assert observed["shell"] is False
+    assert observed["command"][-8:] == [
+        "windows.vadinfo.VadInfo",
+        "--pid",
+        "44",
+        "--address",
+        "4096",
+        "--dump",
+        "--maxsize",
+        "4096",
+    ]
+
+
+def test_volatility_region_extraction_rejects_provider_path_traversal(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from reversing_lab.memory import volatility
+
+    executable = tmp_path / "vol"
+    executable.write_text("# placeholder", encoding="utf-8")
+    executable.chmod(0o700)
+    dump = tmp_path / "authorized.dmp"
+    dump.write_bytes(b"PAGEDUMP")
+    monkeypatch.setattr(VolatilityAdapter, "executable", lambda self: executable)
+    monkeypatch.setattr(
+        volatility,
+        "get_settings",
+        lambda: SimpleNamespace(
+            max_analysis_seconds=2,
+            max_external_output_bytes=1024 * 1024,
+            max_memory_region_extract_bytes=4096,
+        ),
+    )
+
+    def fake_run(command, **kwargs):
+        output_dir = Path(command[command.index("-o") + 1])
+        (output_dir.parent / "escaped.bin").write_bytes(b"A" * 4096)
+        kwargs["stdout"].write(
+            json.dumps(
+                [
+                    {
+                        "PID": 44,
+                        "Start VPN": 0x1000,
+                        "End VPN": 0x1FFF,
+                        "File output": "../escaped.bin",
+                    }
+                ]
+            ).encode()
+        )
+        kwargs["stdout"].flush()
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(volatility.subprocess, "run", fake_run)
+    with pytest.raises(IntegrationUnavailableError, match="invalid region artifact path"):
+        VolatilityAdapter().extract_region(
+            dump, pid=44, address=0x1000, max_bytes=4096
+        )
 
 
 def test_volatility_plugin_failures_are_isolated(tmp_path: Path, monkeypatch) -> None:
@@ -542,3 +658,196 @@ def test_memory_module_region_and_network_api(api_client, monkeypatch) -> None:
         ).status_code
         == 422
     )
+
+
+def test_memory_region_inspection_artifact_hex_disassembly_and_download(
+    api_client, monkeypatch
+) -> None:
+    from reversing_lab.api.routes import memory
+
+    result = MemoryAnalysisResult(
+        metadata=MemoryMetadata(
+            sha256="a" * 64,
+            size=256,
+            dump_format="windows-memory-dump",
+            os_guess="Windows",
+            architecture="x86_64",
+            confidence=0.9,
+        ),
+        processes=(),
+        regions=(
+            MemoryRegion(
+                start=0x1000,
+                end=0x1FFF,
+                protection="PAGE_EXECUTE_READWRITE",
+                mapped_file=None,
+                suspicious=True,
+                reason="Writable and executable memory region (heuristic).",
+                source_provider="volatility3",
+                pid=44,
+                process_name="fixture.exe",
+                private_memory=True,
+                tag="VadS",
+            ),
+        ),
+        strings=(),
+        urls=(),
+        ip_addresses=(),
+        domains=(),
+        findings=(),
+        provider="volatility3",
+        unavailable=(),
+        warnings=(),
+    )
+    code = b"\x48\x31\xc0\x48\x83\xc0\x01\xc3" + b"\x00" * (4096 - 8)
+    monkeypatch.setattr(memory, "analyze_memory", lambda *args, **kwargs: result)
+    monkeypatch.setattr(VolatilityAdapter, "is_available", lambda self: True)
+    monkeypatch.setattr(
+        VolatilityAdapter,
+        "extract_region",
+        lambda self, dump_path, *, pid, address, max_bytes: RegionExtraction(
+            data=code,
+            pid=pid,
+            start=address,
+            end=address + len(code) - 1,
+            process_name="fixture.exe",
+            provider="volatility3",
+        ),
+    )
+    upload = api_client.post(
+        "/api/memory-dumps",
+        files={"file": ("fixture.dmp", b"PAGEDUMP" + b"\x00" * 248)},
+    )
+    dump_id = upload.json()["id"]
+    started = api_client.post(
+        f"/api/memory-dumps/{dump_id}/analysis", json={"use_volatility": True}
+    )
+    assert _wait_for_job(api_client, started.json()["id"])["state"] == "completed"
+
+    inspect = api_client.post(
+        f"/api/memory-dumps/{dump_id}/regions/inspect",
+        json={
+            "pid": 44,
+            "start_address": 0x1000,
+            "architecture": "x86_64",
+            "acknowledged": True,
+        },
+    )
+    assert inspect.status_code == 202, inspect.text
+    job = _wait_for_job(api_client, inspect.json()["id"])
+    assert job["state"] == "completed", job
+    artifact_id = job["result_ref"]
+
+    artifacts = api_client.get(
+        f"/api/memory-dumps/{dump_id}/region-artifacts"
+    ).json()
+    assert len(artifacts) == 1
+    assert artifacts[0]["id"] == artifact_id
+    assert artifacts[0]["start_hex"] == "0x1000"
+    assert artifacts[0]["size"] == 4096
+
+    page = api_client.get(
+        f"/api/memory-dumps/{dump_id}/region-artifacts/{artifact_id}/hex",
+        params={"offset": 0, "length": 16},
+    ).json()
+    assert page["base_address_hex"] == "0x1000"
+    assert page["rows"][0]["address_hex"] == "0x1000"
+    assert page["rows"][0]["hex_bytes"][:3] == ["48", "31", "c0"]
+
+    disassembly = api_client.get(
+        f"/api/memory-dumps/{dump_id}/region-artifacts/{artifact_id}/disassembly",
+        params={"count": 4},
+    ).json()
+    assert disassembly["architecture"] == "x86_64"
+    assert disassembly["instructions"][0]["address_hex"] == "0x1000"
+    assert disassembly["instructions"][0]["mnemonic"] == "xor"
+    assert disassembly["instructions"][2]["mnemonic"] == "ret"
+
+    download = api_client.get(
+        f"/api/memory-dumps/{dump_id}/region-artifacts/{artifact_id}/download"
+    )
+    assert download.status_code == 200
+    assert download.content == code
+    assert download.headers["x-content-sha256"] == artifacts[0]["content_sha256"]
+
+    invalid = api_client.post(
+        f"/api/memory-dumps/{dump_id}/regions/inspect",
+        json={
+            "pid": 99,
+            "start_address": 0x1000,
+            "architecture": "x86_64",
+            "acknowledged": True,
+        },
+    )
+    assert invalid.status_code == 422
+    injection = api_client.post(
+        f"/api/memory-dumps/{dump_id}/regions/inspect",
+        json={
+            "pid": "44;touch /tmp/owned",
+            "start_address": "0x1000;id",
+            "architecture": "x86_64;id",
+            "acknowledged": True,
+        },
+    )
+    assert injection.status_code == 422
+
+
+def test_memory_region_inspection_is_disabled_without_volatility(
+    api_client, monkeypatch
+) -> None:
+    from reversing_lab.api.routes import memory
+
+    result = MemoryAnalysisResult(
+        metadata=MemoryMetadata(
+            sha256="a" * 64,
+            size=256,
+            dump_format="windows-memory-dump",
+            os_guess="Windows",
+            architecture="x86_64",
+            confidence=0.9,
+        ),
+        processes=(),
+        regions=(
+            MemoryRegion(
+                start=0x1000,
+                end=0x1FFF,
+                protection="PAGE_READWRITE",
+                mapped_file=None,
+                suspicious=False,
+                reason=None,
+                source_provider="volatility3",
+                pid=44,
+            ),
+        ),
+        strings=(),
+        urls=(),
+        ip_addresses=(),
+        domains=(),
+        findings=(),
+        provider="volatility3",
+        unavailable=(),
+        warnings=(),
+    )
+    monkeypatch.setattr(memory, "analyze_memory", lambda *args, **kwargs: result)
+    upload = api_client.post(
+        "/api/memory-dumps",
+        files={"file": ("fixture.dmp", b"PAGEDUMP" + b"\x00" * 248)},
+    )
+    dump_id = upload.json()["id"]
+    started = api_client.post(
+        f"/api/memory-dumps/{dump_id}/analysis", json={"use_volatility": True}
+    )
+    assert _wait_for_job(api_client, started.json()["id"])["state"] == "completed"
+    monkeypatch.setattr(VolatilityAdapter, "is_available", lambda self: False)
+
+    response = api_client.post(
+        f"/api/memory-dumps/{dump_id}/regions/inspect",
+        json={
+            "pid": 44,
+            "start_address": 0x1000,
+            "architecture": "x86_64",
+            "acknowledged": True,
+        },
+    )
+    assert response.status_code == 409
+    assert "unavailable" in response.json()["detail"]

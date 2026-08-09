@@ -20,6 +20,7 @@ from .models import (
     CtfWorkspaceRecord,
     DynamicAnalysisRunRecord,
     MemoryDumpRecord,
+    MemoryRegionArtifactRecord,
     ProjectRecord,
     ProjectSampleRecord,
     UserAnnotationRecord,
@@ -78,6 +79,10 @@ class RetentionRepository:
             "memory_dumps": self._count(
                 MemoryDumpRecord,
                 MemoryDumpRecord.owner_id == self._principal_id,
+            ),
+            "memory_region_artifacts": self._count(
+                MemoryRegionArtifactRecord,
+                MemoryRegionArtifactRecord.owner_id == self._principal_id,
             ),
             "dynamic_runs": self._count(
                 DynamicAnalysisRunRecord,
@@ -170,6 +175,13 @@ class RetentionRepository:
                 )
             )
         )
+        region_artifacts = list(
+            self._session.scalars(
+                select(MemoryRegionArtifactRecord).where(
+                    MemoryRegionArtifactRecord.owner_id == self._principal_id
+                )
+            )
+        )
         runs = list(
             self._session.scalars(
                 select(DynamicAnalysisRunRecord).where(
@@ -187,6 +199,9 @@ class RetentionRepository:
 
         candidates: list[tuple[str, str]] = []
         candidates.extend(("artifact", item.storage_path) for item in artifacts)
+        candidates.extend(
+            ("memory-region", item.storage_path) for item in region_artifacts
+        )
         for item in dumps:
             candidates.append(("memory", item.storage_path))
             if item.analysis_path:
@@ -208,6 +223,7 @@ class RetentionRepository:
             AnalysisArtifactRecord,
             UserAnnotationRecord,
             BookmarkRecord,
+            MemoryRegionArtifactRecord,
             MemoryDumpRecord,
             CtfWorkspaceRecord,
             AnalysisJobRecord,
@@ -310,6 +326,13 @@ class RetentionRepository:
             return bool(
                 self._count(MemoryDumpRecord, MemoryDumpRecord.analysis_path == path)
             )
+        if kind == "memory-region":
+            return bool(
+                self._count(
+                    MemoryRegionArtifactRecord,
+                    MemoryRegionArtifactRecord.storage_path == path,
+                )
+            )
         if kind == "dynamic":
             return bool(
                 self._count(
@@ -328,6 +351,7 @@ class RetentionRepository:
             (storage_parent / "artifacts").resolve(),
             (storage_parent / "memory").resolve(),
             (storage_parent / "memory-artifacts").resolve(),
+            (storage_parent / "memory-region-artifacts").resolve(),
             (storage_parent / "dynamic-artifacts").resolve(),
         }
         removed = 0
