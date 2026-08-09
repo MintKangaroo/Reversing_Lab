@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import (
     AnnotationRepository,
     ArtifactRepository,
+    AuditRepository,
     BinaryRepository,
     BookmarkRepository,
     ChallengeAttemptRepository,
@@ -18,6 +19,7 @@ from ..database import (
     JobRepository,
     MemoryDumpRepository,
     ProjectRepository,
+    RetentionRepository,
 )
 from ..database.session import get_session_factory
 from .auth import Principal, get_current_principal, resource_scope
@@ -81,6 +83,13 @@ def get_artifact_repository(
     return _owned(ArtifactRepository, session, principal)
 
 
+def get_audit_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> AuditRepository:
+    return _owned(AuditRepository, session, principal)
+
+
 def get_job_repository(
     session: Session = Depends(get_db),
     principal: Principal = Depends(get_current_principal),
@@ -107,3 +116,11 @@ def get_ctf_workspace_repository(
     principal: Principal = Depends(get_current_principal),
 ) -> CtfWorkspaceRepository:
     return _owned(CtfWorkspaceRepository, session, principal)
+
+
+def get_retention_repository(
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> RetentionRepository:
+    owner_id, _ = resource_scope(principal)
+    return RetentionRepository(session, owner_id)

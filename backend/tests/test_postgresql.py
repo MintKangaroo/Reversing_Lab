@@ -17,11 +17,13 @@ from reversing_lab.config import get_settings
 from reversing_lab.database.models import BinaryAccessRecord, BinaryRecord
 from reversing_lab.database.repository import (
     AnnotationRepository,
+    AuditRepository,
     BinaryRepository,
     BookmarkRepository,
     CtfWorkspaceRepository,
     ProjectRepository,
 )
+from reversing_lab.database.retention import RetentionRepository
 from reversing_lab.errors import BinaryNotFoundError
 
 _DATABASE_URL = os.getenv("RLAB_TEST_POSTGRES_URL")
@@ -49,7 +51,7 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
 
     with engine.connect() as connection:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-    assert revision == "0004_resource_ownership"
+    assert revision == "0005_audit_events"
 
     for table_name in (
         "projects",
@@ -138,6 +140,24 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
         assert projects.sample_hashes(project.id, "analyst-one") == [digest]
         assert note.address == virtual_address + 2
 
+        AuditRepository(session).record(
+            request_id="00000000-0000-0000-0000-000000000001",
+            principal_id="analyst-one",
+            role="analyst",
+            action="POST /api/projects",
+            resource_type="projects",
+            resource_id=project.id,
+            method="POST",
+            route="/api/projects",
+            status_code=201,
+            outcome="succeeded",
+        )
+        audit_items, audit_total = AuditRepository(
+            session, "analyst-one", False
+        ).list(offset=0, limit=10)
+        assert audit_total == 1
+        assert audit_items[0].details_json == "{}"
+
         settings = get_settings()
         previous_storage = settings.storage_dir
         settings.storage_dir = tmp_path / "postgres-storage"
@@ -155,5 +175,14 @@ def test_postgresql_schema_and_64_bit_repository_roundtrip(tmp_path: Path) -> No
             assert second_repo.display_filename(second.sha256) == "owner-two.elf"
         finally:
             settings.storage_dir = previous_storage
+
+        preview = RetentionRepository(session, "analyst-one").preview(True)
+        assert preview["counts"]["annotations"] == 1
+        retained = RetentionRepository(session, "analyst-one").purge(True)
+        assert retained["deleted_counts"]["projects"] == 1
+        assert retained["binary_records_deleted"] == 0
+        assert AnnotationRepository(session, "analyst-two", False).list(
+            digest
+        )[0].value == "isolated overlay"
 
     engine.dispose()

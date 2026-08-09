@@ -296,6 +296,123 @@ def test_project_cannot_link_an_ungranted_sample(authenticated_client) -> None:
     assert granted.json()["sample_sha256"] == [sha256]
 
 
+def test_audit_events_are_principal_scoped_and_admin_auditable(
+    authenticated_client,
+) -> None:
+    client, tokens = authenticated_client
+    analyst_one = _authorization(tokens["analyst"])
+    analyst_two = _authorization(tokens["analyst_two"])
+    admin = _authorization(tokens["admin"])
+
+    first = client.post(
+        "/api/projects",
+        headers=analyst_one,
+        json={"name": "private analyst one name"},
+    )
+    second = client.post(
+        "/api/projects",
+        headers=analyst_two,
+        json={"name": "private analyst two name"},
+    )
+    denied = client.post("/api/projects", json={"name": "unauthenticated"})
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert denied.status_code == 401
+
+    first_events = client.get("/api/audit-events", headers=analyst_one).json()
+    assert first_events["total"] == 1
+    assert {item["principal_id"] for item in first_events["items"]} == {
+        "analyst-one"
+    }
+    assert "private analyst one name" not in json.dumps(first_events)
+
+    admin_events = client.get("/api/audit-events", headers=admin).json()
+    assert admin_events["total"] == 3
+    assert {item["principal_id"] for item in admin_events["items"]} == {
+        "analyst-one",
+        "analyst-two",
+        "anonymous",
+    }
+
+
+def test_shared_binary_is_reclaimed_only_after_last_owner_purges(
+    authenticated_client,
+) -> None:
+    client, tokens = authenticated_client
+    analyst_one = _authorization(tokens["analyst"])
+    analyst_two = _authorization(tokens["analyst_two"])
+    admin = _authorization(tokens["admin"])
+    data = sample_elf()
+    sha256 = client.post(
+        "/api/binaries",
+        headers=analyst_one,
+        files={"file": ("one.elf", data)},
+    ).json()["sha256"]
+    client.post(
+        "/api/binaries",
+        headers=analyst_two,
+        files={"file": ("two.elf", data)},
+    )
+
+    first_preview = client.get(
+        "/api/retention/preview?include_binary_access=true",
+        headers=analyst_one,
+    ).json()
+    assert first_preview["orphanable_binary_count"] == 0
+    first_purge = client.post(
+        "/api/retention/purge",
+        headers=analyst_one,
+        json={
+            "confirmation": "PURGE:analyst-one",
+            "include_binary_access": True,
+        },
+    )
+    assert first_purge.status_code == 200, first_purge.text
+    assert first_purge.json()["binary_records_deleted"] == 0
+    assert client.get(
+        f"/api/binaries/{sha256}/info", headers=analyst_one
+    ).status_code == 404
+    assert client.get(
+        f"/api/binaries/{sha256}/info", headers=analyst_two
+    ).status_code == 200
+
+    second_preview = client.get(
+        "/api/retention/preview?include_binary_access=true",
+        headers=analyst_two,
+    ).json()
+    assert second_preview["orphanable_binary_count"] == 1
+    second_purge = client.post(
+        "/api/retention/purge",
+        headers=analyst_two,
+        json={
+            "confirmation": "PURGE:analyst-two",
+            "include_binary_access": True,
+        },
+    )
+    assert second_purge.status_code == 200, second_purge.text
+    assert second_purge.json()["binary_records_deleted"] == 1
+    assert second_purge.json()["files_removed"] == 1
+    assert client.get(
+        f"/api/binaries/{sha256}/info", headers=admin
+    ).status_code == 404
+
+
+def test_viewer_cannot_purge_and_denial_is_audited(authenticated_client) -> None:
+    client, tokens = authenticated_client
+    viewer = _authorization(tokens["viewer"])
+    denied = client.post(
+        "/api/retention/purge",
+        headers=viewer,
+        json={"confirmation": "PURGE:viewer-one"},
+    )
+    assert denied.status_code == 403
+    events = client.get(
+        "/api/audit-events?outcome=denied", headers=viewer
+    ).json()
+    assert events["total"] == 1
+    assert events["items"][0]["principal_id"] == "viewer-one"
+
+
 def test_disabled_auth_remains_backward_compatible(api_client) -> None:
     response = api_client.get("/api/auth/me")
     assert response.status_code == 200

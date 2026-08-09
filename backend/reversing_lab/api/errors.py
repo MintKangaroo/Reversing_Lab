@@ -13,6 +13,7 @@ from ..errors import (
     DisassemblyError,
     IntegrationUnavailableError,
     ParseError,
+    RetentionConflictError,
     ReversingLabError,
     UnsupportedFormatError,
 )
@@ -27,6 +28,7 @@ _STATUS_MAP: list[tuple[type[ReversingLabError], int]] = [
     (IntegrationUnavailableError, 503),  # Service Unavailable
     (ParseError, 422),  # Unprocessable Entity
     (DisassemblyError, 422),
+    (RetentionConflictError, 409),
 ]
 
 

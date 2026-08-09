@@ -34,3 +34,7 @@ class BinaryNotFoundError(ReversingLabError):
 
 class IntegrationUnavailableError(ReversingLabError):
     """An external tool (radare2/Ghidra/Binary Ninja) was requested but is not installed."""
+
+
+class RetentionConflictError(ReversingLabError):
+    """Owned data cannot be purged while related work is active."""

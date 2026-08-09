@@ -23,6 +23,56 @@ class PrincipalSchema(BaseModel):
     authentication_enabled: bool
 
 
+class AuditEventSchema(BaseModel):
+    id: str
+    request_id: str
+    principal_id: str
+    role: str
+    action: str
+    resource_type: str
+    resource_id: str | None
+    method: str
+    route: str
+    status_code: int
+    outcome: Literal["succeeded", "denied", "failed"]
+    details: dict[str, object]
+    created_at: datetime
+
+
+class AuditEventPageSchema(BaseModel):
+    items: list[AuditEventSchema]
+    total: int
+    offset: int
+    limit: int
+
+
+class RetentionPreviewSchema(BaseModel):
+    principal_id: str
+    include_binary_access: bool
+    required_confirmation: str
+    counts: dict[str, int]
+    active_jobs: int
+    orphanable_binary_count: int
+    estimated_reclaimable_binary_bytes: int
+    audit_events_retained: bool
+
+
+class RetentionPurgeRequestSchema(BaseModel):
+    confirmation: str = Field(min_length=7, max_length=160)
+    include_binary_access: bool = False
+
+
+class RetentionPurgeResultSchema(BaseModel):
+    principal_id: str
+    include_binary_access: bool
+    deleted_counts: dict[str, int]
+    binary_records_deleted: int
+    files_removed: int
+    bytes_reclaimed: int
+    audit_events_retained: bool
+    warnings: list[str]
+
+
 # --- Parser -----------------------------------------------------------------------
 class SectionSchema(BaseModel):
     model_config = _FROM_ATTRS
