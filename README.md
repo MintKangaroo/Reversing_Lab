@@ -10,8 +10,8 @@ finding, 메모리 트리아지, 격리형 동적 분석 제어, CTF 노트와 �
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-109_passing-3fb950)
-![Frontend tests](https://img.shields.io/badge/frontend_tests-10_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-117_passing-3fb950)
+![Frontend tests](https://img.shields.io/badge/frontend_tests-15_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ![Reversing Lab dashboard](docs/screenshots/01-dashboard.png)
@@ -35,10 +35,11 @@ docker compose up --build
 ## 사용 방법
 
 1. 왼쪽 Explorer에서 분석 권한이 있는 ELF/PE/Mach-O 파일을 업로드합니다.
-2. `Functions`에서 함수를 고르고 `Disassembly`, `Pseudo-C`, `CFG`를 함께 확인합니다.
+2. `Functions`에서 함수를 선택하고 `Disassembly`, `Pseudo-C`, `CFG`를 확인합니다.
 3. `Call Graph`, `Program Flow`, `Packing`, `Obfuscation`에서 근거와 confidence를 검토합니다.
-4. 오른쪽 Inspector에서 함수 이름, 코멘트, bookmark를 저장합니다.
-5. `Reports`에서 결과를 JSON, Markdown 또는 HTML로 내보냅니다.
+4. 오른쪽 Inspector에 함수 이름, 코멘트와 bookmark를 기록합니다.
+5. `Reports`에서 JSON, Markdown 또는 HTML 보고서를 내려받습니다.
+6. `Settings`에서 최근 변경 감사 기록과 내 데이터 정리 dry-run을 확인합니다.
 
 주소는 UI에서 `0x...`로 표시됩니다. Pseudo-C는 원본 소스가 아니라 보수적인 추정 결과이며,
 각 finding에는 verified/heuristic/inferred provenance와 false-positive 주의 사항이 표시됩니다.
@@ -77,7 +78,7 @@ docker compose up --build
 | 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
 | 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
 | 저장·보고 | content-addressed storage, DB-backed jobs, JSON/Markdown/HTML export |
-| 운영 | Alembic migration, optional API-key roles, resource ownership, resource limits |
+| 운영 | Alembic migration, optional API-key roles, owner scope, append-only audit metadata, dry-run retention |
 
 ## 로컬 개발 실행
 
@@ -132,6 +133,13 @@ export RLAB_AUTH_API_KEY_HASHES='{"<출력된 digest>":"analyst-one:analyst"}'
 admin은 운영 감사를 위해 전체 리소스를 볼 수 있습니다.
 [인증 문서](docs/AUTHENTICATION.md)에 운영 및 rotation 절차가 있습니다.
 
+모든 변경 요청에는 서버 생성 `X-Request-ID`가 붙고 method, route template, status, principal,
+resource 식별자만 감사 이벤트로 저장됩니다. 요청 본문, bearer key와 decoder 입력은 저장하지
+않습니다. `Settings`의 데이터 정리는 현재 principal 소유 데이터만 대상으로 하며, 먼저 수량과
+예상 회수 용량을 보여줍니다. 실행에는 정확한 `PURGE:<principal-id>` 입력이 필요하고 실행 중인
+job이 있으면 차단됩니다. Binary access grant를 함께 지워도 다른 참조가 남은 hash 파일은
+보존됩니다.
+
 ![Authentication gate](docs/screenshots/16-authentication.png)
 
 ## 외부 도구
@@ -185,7 +193,7 @@ cd backend && ../.venv/bin/pytest
 cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 기준은 SQLite backend 109개와 PostgreSQL 계약 1개, frontend 10개 테스트 통과,
+현재 기준은 SQLite backend 117개와 PostgreSQL 계약 1개, frontend 15개 테스트 통과,
 production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지
 않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend build/audit,
 Alembic drift와 whitespace를 검사합니다.
@@ -195,8 +203,10 @@ Alembic drift와 whitespace를 검사합니다.
 - 실제 VM sandbox provider와 RetDec/r2ghidra adapter는 아직 구현되지 않았습니다.
 - Volatility 정규화는 process list 중심이며 module/handle/registry/network 모델은 확장 예정입니다.
 - 함수 경계, 타입, indirect control flow, pseudo-C는 휴리스틱이므로 수동 검증이 필요합니다.
-- PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 OIDC, audit log, retention API,
-  server-side rate limiting이 추가로 필요합니다.
+- PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 OIDC, server-side rate limiting이
+  추가로 필요합니다.
+- 내장 감사 이벤트는 애플리케이션 수준 append-only metadata입니다. 변조 방지 서명, 외부
+  WORM 보관소 전송, 장기 archive/rotation 정책은 운영 환경에서 별도로 구성해야 합니다.
 
 ## 문서와 로드맵
 

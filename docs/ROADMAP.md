@@ -14,14 +14,16 @@
 - PostgreSQL 16 migration round-trip CI and 64-bit repository contract tests;
 - optional digest-backed bearer authentication, coarse roles, full resource ownership
   migration, and content-addressed binary access grants;
+- body-free append-only mutation audit events, request correlation, principal-scoped
+  audit UI, and dry-run-first owned-data retention with reference-safe file reclaim;
 - backend/frontend/security regression tests, CI, development containers.
 
 ## Near term
 
 1. PostgreSQL backup/restore rehearsal, TLS deployment guide, concurrency/load testing,
    and production observability.
-2. OIDC/short-lived credentials, audit-event persistence, retention/deletion API, and
-   server-side rate limiting.
+2. OIDC/short-lived credentials, centralized revocation, server-side rate limiting,
+   and audit export to signed/WORM-backed storage with archival policy.
 3. RetDec and r2ghidra adapters with the same process hardening contract.
 4. richer PE/ELF mitigation metadata: canary, CFG, signing, debug/build ID, TLS, overlay.
 5. paginated artifact download and explicit report association for memory/dynamic runs.

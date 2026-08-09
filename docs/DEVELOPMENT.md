@@ -59,8 +59,8 @@ pytest tests/test_migrations.py
 
 `python -m reversing_lab.database.migrate` upgrades fresh/versioned databases. An older
 unversioned `create_all` database is stamped only after its table and column sets match
-a known revision; initial, pre-project-owner, and pre-resource-owner schemas are
-recognized.
+a known revision; initial, pre-project-owner, pre-resource-owner, and pre-audit schemas
+are recognized.
 Partial or drifted schemas are rejected. Back up real data before stamping or upgrading.
 `init_db()` retains idempotent `create_all` behavior for local backward compatibility,
 but production startup should run the migration bootstrap first.
