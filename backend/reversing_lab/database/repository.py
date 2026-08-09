@@ -14,14 +14,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
 from ..errors import BinaryNotFoundError
 from .models import (
+    DEFAULT_OWNER_ID,
     AnalysisArtifactRecord,
     AnalysisJobRecord,
+    AuditEventRecord,
     BinaryAccessRecord,
     BinaryRecord,
     BookmarkRecord,
@@ -29,7 +31,6 @@ from .models import (
     CtfNoteRecord,
     CtfWorkspaceRecord,
     DynamicAnalysisRunRecord,
-    DEFAULT_OWNER_ID,
     MemoryDumpRecord,
     ProjectRecord,
     ProjectSampleRecord,
@@ -204,6 +205,82 @@ class ChallengeAttemptRepository(_OwnedRepository):
         )
         stmt = self._read_scope(stmt, ChallengeAttempt)
         return set(self._session.scalars(stmt))
+
+
+class AuditRepository:
+    """Append-only request audit events with principal-scoped reads."""
+
+    def __init__(
+        self,
+        session: Session,
+        principal_id: str = DEFAULT_OWNER_ID,
+        unrestricted: bool = True,
+    ) -> None:
+        self._session = session
+        self._principal_id = principal_id
+        self._unrestricted = unrestricted
+
+    def record(
+        self,
+        *,
+        request_id: str,
+        principal_id: str,
+        role: str,
+        action: str,
+        resource_type: str,
+        resource_id: str | None,
+        method: str,
+        route: str,
+        status_code: int,
+        outcome: str,
+    ) -> AuditEventRecord:
+        record = AuditEventRecord(
+            id=str(uuid4()),
+            request_id=request_id,
+            principal_id=principal_id[:128],
+            role=role[:32],
+            action=action[:192],
+            resource_type=resource_type[:64],
+            resource_id=resource_id[:128] if resource_id else None,
+            method=method[:8],
+            route=route[:256],
+            status_code=status_code,
+            outcome=outcome[:16],
+            details_json="{}",
+        )
+        self._session.add(record)
+        self._session.commit()
+        return record
+
+    def list(
+        self,
+        *,
+        offset: int,
+        limit: int,
+        action: str | None = None,
+        resource_type: str | None = None,
+        outcome: str | None = None,
+    ) -> tuple[list[AuditEventRecord], int]:
+        filters = []
+        if not self._unrestricted:
+            filters.append(AuditEventRecord.principal_id == self._principal_id)
+        if action is not None:
+            filters.append(AuditEventRecord.action == action)
+        if resource_type is not None:
+            filters.append(AuditEventRecord.resource_type == resource_type)
+        if outcome is not None:
+            filters.append(AuditEventRecord.outcome == outcome)
+        total = self._session.scalar(
+            select(func.count()).select_from(AuditEventRecord).where(*filters)
+        )
+        statement = (
+            select(AuditEventRecord)
+            .where(*filters)
+            .order_by(AuditEventRecord.created_at.desc(), AuditEventRecord.id.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        return list(self._session.scalars(statement)), int(total or 0)
 
 
 class ProjectRepository(_OwnedRepository):

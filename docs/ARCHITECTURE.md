@@ -24,7 +24,7 @@ FastAPI
 ├── api/routes
 │   ├── binaries / analysis / reports
 │   ├── memory / dynamic / jobs
-│   └── projects / CTF / tooling / challenges
+│   └── projects / CTF / tooling / audit / retention / challenges
 ├── parser ── normalized BinaryInfo
 ├── analysis + analyzer + disassembler
 ├── decompiler adapters
@@ -79,6 +79,21 @@ api → analysis/analyzer/disassembler/decompiler/memory/dynamic → parser.mode
 4. provider output is bounded and stored as compressed events/artifact metadata.
 5. the API never substitutes local subprocess execution.
 
+### Mutation audit and retention
+
+1. authorization resolves the principal before a mutation reaches a route;
+2. middleware assigns a server UUID request ID and records only method, matched route
+   template, status/outcome, principal, role, and allowlisted resource identifiers;
+3. request bodies, authorization headers, query values, and decoder input are never
+   copied into audit storage;
+4. retention preview counts only the current principal's resources, including for an
+   administrator;
+5. purge requires the exact `PURGE:<principal-id>` confirmation and refuses while an
+   owned job is queued or running;
+6. the database transaction commits before files are removed, paths must be direct
+   children of configured storage roots, and referenced content-addressed binaries
+   remain intact.
+
 ## Data and persistence
 
 SQLAlchemy models index projects, binaries, annotations, bookmarks, jobs, artifacts,
@@ -105,7 +120,13 @@ job/run/dump. Admins retain cross-owner operational access.
 Physical binary bytes remain deduplicated by SHA-256. The grant row owns the analyst's
 display filename, avoiding cross-owner filename leakage without duplicating content.
 This database boundary does not replace a mature identity provider, persistent audit
-trail, rate limiting, or deployment-level isolation.
+archive, rate limiting, or deployment-level isolation.
+
+Revision 0005 adds append-only mutation audit metadata. Reads are principal-scoped,
+while administrators can inspect all principals. Audit rows intentionally outlive the
+built-in owned-data purge. They are append-only by repository/API convention, not a
+cryptographically sealed or WORM-backed ledger; production deployments should export
+them to an independently controlled audit system.
 
 ## Analysis accuracy and provenance
 
@@ -136,7 +157,7 @@ Large UI tables use windowed rendering.
 - a simple DB-backed thread runner fits local deployment; distributed queues can be
   added behind the runner interface later.
 - no graph/editor/state library was added. SVG layouts, hooks, and hash routing keep
-  the production bundle small; current JS is about 69 KiB gzip.
+  the production bundle small; current JS is about 71 KiB gzip.
 - Vitest/Testing Library are development-only and do not enter the production bundle.
 
 ## Current extension seams

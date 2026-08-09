@@ -314,3 +314,27 @@ class CtfNoteRecord(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+
+
+class AuditEventRecord(Base):
+    """Append-only, body-free security and mutation audit event."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    request_id: Mapped[str] = mapped_column(String(36), nullable=False, unique=True)
+    principal_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    action: Mapped[str] = mapped_column(String(192), nullable=False, index=True)
+    resource_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    resource_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )
+    method: Mapped[str] = mapped_column(String(8), nullable=False)
+    route: Mapped[str] = mapped_column(String(256), nullable=False)
+    status_code: Mapped[int] = mapped_column(Integer, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    details_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False, index=True
+    )

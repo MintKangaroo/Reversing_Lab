@@ -12,9 +12,17 @@ The built-in roles are deliberately coarse. Viewers are HTTP read-only, analysts
 mutate state, and admins may audit all resources. Non-admin access is enforced through
 binary grants and owner-scoped repositories for projects, overlays, artifacts, jobs,
 dumps, dynamic runs, CTF state, and reports. Cross-owner lookups return 404. This is
-still not a complete identity/control plane: OIDC, centralized revocation, persistent
-audit events, retention APIs, and server-side rate limits remain future work. See
+still not a complete identity/control plane: OIDC, centralized revocation, and
+server-side rate limits remain future work. See
 [AUTHENTICATION.md](AUTHENTICATION.md).
+
+Mutation requests receive a server-generated request ID and append method, matched
+route template, principal/role, resource metadata, status, and outcome to the database.
+The audit path never stores request bodies, authorization headers, query strings, or
+decoder input. The repository exposes no update/delete method, and built-in retention
+never deletes audit rows. This is application-level append-only behavior, not a
+cryptographically sealed ledger; ship events to independent append-only storage for a
+strong operational audit boundary.
 
 ## Upload and storage controls
 
@@ -61,6 +69,14 @@ Analyst notes are stored and HTML report output escapes them. Dynamic/memory bul
 uses compressed artifacts. Logs should contain identifiers and state, not raw sample
 contents or decoder input.
 
+Owned-data deletion is explicit and dry-run-first. Even an administrator can purge only
+the current principal's scope. Exact typed confirmation is required; queued/running
+owned jobs cause HTTP 409. Binary grants are optional in the purge, and physical sample
+bytes are reclaimed only after all access and analysis references are gone. Metadata is
+committed before unlinking, and only direct files under configured storage roots can be
+removed. Operators still need backup, legal hold, retention duration, and secure media
+disposal policies.
+
 ## Production hardening checklist
 
 - enable API-key auth or add OIDC, terminate TLS, rate-limit failures, and redact
@@ -73,7 +89,7 @@ contents or decoder input.
 - keep storage non-executable and mount it `noexec,nodev,nosuid`;
 - restrict outbound network and CORS origins;
 - run API/UI as non-root users;
-- ship audit logs to append-only storage;
+- ship built-in audit events to independently controlled append-only storage;
 - scan dependencies and container images in CI;
 - rotate/delete samples according to legal retention requirements.
 

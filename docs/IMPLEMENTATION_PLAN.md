@@ -143,7 +143,7 @@ verification before the follow-up hardening work was:
 Subsequent hardening added Alembic revisions, optional API-key roles, project
 ownership, and PostgreSQL 16 migration/repository contract CI. Remaining items are
 recorded in [ROADMAP.md](ROADMAP.md), including production database operations, full
-OIDC/audit/retention controls, RetDec/r2ghidra, richer memory normalization, and a
+OIDC and external audit archival, RetDec/r2ghidra, richer memory normalization, and a
 real VM-backed sandbox provider.
 
 Follow-up verification on 2026-08-02: 104 backend tests and 10 frontend tests passed;
@@ -157,3 +157,11 @@ Resource-ownership follow-up on 2026-08-02: revision 0004 added content-addresse
 binary grants and principal ownership for mutable investigation resources. SQLite and
 PostgreSQL contracts cover legacy `local` backfill, cross-owner 404 responses,
 per-principal filenames and overlays, and admin audit access.
+
+Audit/retention follow-up on 2026-08-09: revision 0005 added request-correlated,
+body-free mutation audit metadata and a principal-scoped audit API/UI. Retention now
+supports preview, exact typed confirmation, active-job refusal, optional grant removal,
+and reference-safe file reclamation under configured roots. Verification passed 117
+default backend tests plus the PostgreSQL 16 contract, 15 frontend tests, production
+build, Alembic drift/round-trip checks on both dialects, and a zero-vulnerability npm
+audit.

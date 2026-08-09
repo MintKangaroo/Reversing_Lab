@@ -41,4 +41,34 @@ describe('API client', () => {
       headers: { Authorization: 'Bearer temporary-tab-key' },
     });
   });
+
+  it('sends explicit retention confirmation without placing it in the URL', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({
+      body: { principal_id: 'analyst-one', files_removed: 0 },
+    }));
+
+    await api.purgeRetention('PURGE:analyst-one', true);
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/retention/purge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        confirmation: 'PURGE:analyst-one',
+        include_binary_access: true,
+      }),
+    });
+  });
+
+  it('encodes audit filters as query parameters', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({
+      body: { items: [], total: 0, offset: 0, limit: 12 },
+    }));
+
+    await api.auditEvents({ limit: 12, outcome: 'denied' });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/audit-events?limit=12&outcome=denied',
+      {},
+    );
+  });
 });

@@ -18,6 +18,10 @@ CTF state, and reports use or inherit the principal owner scope. Cross-owner ide
 return 404; admins retain global audit access. Configuration and residual identity
 limitations are documented in [AUTHENTICATION.md](AUTHENTICATION.md).
 
+Every response includes a server-generated `X-Request-ID`. POST/PATCH/PUT/DELETE
+requests create an audit event after handling. Audit metadata excludes the body,
+authorization header, query string, and decoder input.
+
 ## Samples and static analysis
 
 | Method | Endpoint |
@@ -70,6 +74,21 @@ Functions, strings, hex, graphs, and high-volume analysis are bounded or paginat
 Decoder input is not persisted. Transform operation names and parameter types are
 allowlisted by Pydantic.
 
+## Audit and owned-data retention
+
+| Method | Endpoint | Behavior |
+|---|---|---|
+| GET | `/audit-events?offset=0&limit=100` | principal-scoped page; admins can inspect all principals |
+| GET | `/retention/preview?include_binary_access=false` | counts current-principal records without deleting |
+| POST | `/retention/purge` | deletes current-principal mutable state after exact confirmation |
+
+Audit filters are `action`, `resource_type`, and `outcome=succeeded|denied|failed`;
+`limit` is capped at 500. Purge accepts JSON
+`{"confirmation":"PURGE:<principal-id>","include_binary_access":false}`. It never
+purges another owner implicitly, even for admins, and it retains audit events. Active
+owned jobs return 409. Including binary access deletes physical hash content only if no
+grant or analysis reference remains.
+
 ## Errors
 
 - `404`: unknown content hash/resource or malformed binary identifier;
@@ -78,7 +97,7 @@ allowlisted by Pydantic.
 - `422`: malformed address/request or analysis failure mapped to client-safe detail;
 - `401`: missing or invalid bearer key when authentication is enabled;
 - `403`: authenticated viewer attempted a mutation;
-- `409`: result requested before job completion;
+- `409`: result requested before job completion or retention blocked by an active job;
 - `503`: explicitly requested optional tool/provider is unavailable.
 
 Example:

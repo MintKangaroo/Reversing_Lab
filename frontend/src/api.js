@@ -114,6 +114,21 @@ export const api = {
   tooling: () => request('/tooling'),
   toolingDetail: (name) => request(`/tooling/${name}`),
   toolingConfiguration: () => request('/tooling/configuration'),
+  auditEvents: (params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/audit-events${query.size ? `?${query}` : ''}`);
+  },
+  retentionPreview: (includeBinaryAccess = false) =>
+    request(`/retention/preview?include_binary_access=${includeBinaryAccess}`),
+  purgeRetention: (confirmation, includeBinaryAccess = false) =>
+    request('/retention/purge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        confirmation,
+        include_binary_access: includeBinaryAccess,
+      }),
+    }),
   transform: (operation, input, parameters = {}) =>
     request('/tools/decode', {
       method: 'POST',

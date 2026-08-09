@@ -16,10 +16,12 @@ from .. import __version__
 from ..config import get_settings
 from ..database.session import init_db
 from ..logging_config import configure_logging
-from .errors import register_exception_handlers
+from .audit_log import audit_mutations
 from .auth import authorize_request
+from .errors import register_exception_handlers
 from .routes import (
     analysis,
+    audit,
     auth,
     binaries,
     challenges,
@@ -31,6 +33,7 @@ from .routes import (
     memory,
     projects,
     reports,
+    retention,
     tooling,
     tools,
 )
@@ -68,12 +71,14 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
+    app.middleware("http")(audit_mutations)
 
     register_exception_handlers(app)
 
     api_prefix = "/api"
     app.include_router(health.router, prefix=api_prefix)
     app.include_router(auth.router, prefix=api_prefix)
+    app.include_router(audit.router, prefix=api_prefix)
     app.include_router(binaries.router, prefix=api_prefix)
     app.include_router(analysis.router, prefix=api_prefix)
     app.include_router(projects.router, prefix=api_prefix)
@@ -84,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(dynamic.router, prefix=api_prefix)
     app.include_router(ctf.router, prefix=api_prefix)
     app.include_router(reports.router, prefix=api_prefix)
+    app.include_router(retention.router, prefix=api_prefix)
     app.include_router(challenges.router, prefix=api_prefix)
     app.include_router(integrations.router, prefix=api_prefix)
 

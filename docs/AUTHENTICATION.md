@@ -71,8 +71,13 @@ They intentionally share the same owner scope.
 
 This is an application-level owner boundary, not a complete hardened multi-tenant
 identity system. API keys are long-lived, admin access is global, and OIDC, centralized
-revocation, persistent audit events, retention workflows, and server-side rate limits
-are not yet implemented. Use separate deployments for strongly isolated tenants.
+revocation, audit-event sealing/external archival, and server-side rate limits are not
+yet implemented. Use separate deployments for strongly isolated tenants.
+
+Mutation audit events store the principal and role but never the bearer value or request
+body. Admins may read all audit events. Owned-data retention is deliberately narrower:
+an admin purge still targets only the admin principal and requires the exact current
+principal confirmation. Audit events are retained by that workflow.
 
 ## Operational requirements
 

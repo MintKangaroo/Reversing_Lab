@@ -64,12 +64,12 @@ async def authorize_request(
             detail="Bearer API key is invalid.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    request.state.principal = principal
     if principal.role == "viewer" and request.method not in _READ_METHODS:
         raise HTTPException(
             status_code=403,
             detail="The viewer role cannot modify analysis state.",
         )
-    request.state.principal = principal
     return principal
 
 

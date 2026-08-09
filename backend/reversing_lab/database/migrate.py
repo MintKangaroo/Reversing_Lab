@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import BigInteger, create_engine, inspect
+
+from alembic import command
 
 from ..config import get_settings
 from .models import Base
@@ -45,9 +46,11 @@ def _legacy_revision(database_url: str) -> str:
         inspector = inspect(engine)
         actual_tables = set(inspector.get_table_names())
         expected_tables = set(Base.metadata.tables)
-        pre_ownership_tables = expected_tables - {"binary_access"}
+        pre_audit_tables = expected_tables - {"audit_events"}
+        pre_ownership_tables = pre_audit_tables - {"binary_access"}
         if (
             actual_tables != expected_tables
+            and actual_tables != pre_audit_tables
             and actual_tables != pre_ownership_tables
         ):
             missing = sorted(pre_ownership_tables - actual_tables)
@@ -57,7 +60,11 @@ def _legacy_revision(database_url: str) -> str:
                 f"missing={missing}, unexpected={unexpected}."
             )
 
-        resource_ownership_present = actual_tables == expected_tables
+        audit_events_present = actual_tables == expected_tables
+        resource_ownership_present = frozenset(actual_tables) in {
+            frozenset(expected_tables),
+            frozenset(pre_audit_tables),
+        }
         project_owner_present = True
         portable_bigints = True
         for name, table in Base.metadata.tables.items():
@@ -88,6 +95,8 @@ def _legacy_revision(database_url: str) -> str:
                 ):
                     portable_bigints = False
 
+        if audit_events_present:
+            return "0005_audit_events"
         if resource_ownership_present:
             return "0004_resource_ownership"
         if not project_owner_present:
