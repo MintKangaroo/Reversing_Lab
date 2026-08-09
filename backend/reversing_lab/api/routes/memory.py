@@ -21,6 +21,8 @@ from ..schemas import (
     MemoryAnalysisSummarySchema,
     MemoryDumpSchema,
     MemoryFindingSchema,
+    MemoryModulePageSchema,
+    MemoryModuleSchema,
     MemoryProcessPageSchema,
     MemoryProcessSchema,
     MemoryRegionPageSchema,
@@ -125,15 +127,16 @@ def memory_analysis_summary(
     return MemoryAnalysisSummarySchema(
         metadata=payload["metadata"],
         provider=payload["provider"],
-        process_count=len(payload["processes"]),
-        region_count=len(payload["regions"]),
-        string_count=len(payload["strings"]),
-        urls=payload["urls"],
-        ip_addresses=payload["ip_addresses"],
-        domains=payload["domains"],
-        finding_count=len(payload["findings"]),
-        unavailable=payload["unavailable"],
-        warnings=payload["warnings"],
+        process_count=len(payload.get("processes", [])),
+        module_count=len(payload.get("modules", [])),
+        region_count=len(payload.get("regions", [])),
+        string_count=len(payload.get("strings", [])),
+        urls=payload.get("urls", []),
+        ip_addresses=payload.get("ip_addresses", []),
+        domains=payload.get("domains", []),
+        finding_count=len(payload.get("findings", [])),
+        unavailable=payload.get("unavailable", []),
+        warnings=payload.get("warnings", []),
     )
 
 
@@ -144,9 +147,28 @@ def memory_processes(
     limit: int = Query(200, ge=1, le=1_000),
     repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
 ) -> MemoryProcessPageSchema:
-    items = _result(repository.get(dump_id))["processes"]
+    items = _result(repository.get(dump_id)).get("processes", [])
     return MemoryProcessPageSchema(
         items=[MemoryProcessSchema.model_validate(item) for item in items[offset : offset + limit]],
+        total=len(items),
+        offset=offset,
+        limit=limit,
+    )
+
+
+@router.get("/{dump_id}/modules", response_model=MemoryModulePageSchema)
+def memory_modules(
+    dump_id: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1_000),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> MemoryModulePageSchema:
+    items = _result(repository.get(dump_id)).get("modules", [])
+    return MemoryModulePageSchema(
+        items=[
+            MemoryModuleSchema.model_validate(item)
+            for item in items[offset : offset + limit]
+        ],
         total=len(items),
         offset=offset,
         limit=limit,
@@ -160,7 +182,7 @@ def memory_regions(
     limit: int = Query(200, ge=1, le=1_000),
     repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
 ) -> MemoryRegionPageSchema:
-    items = _result(repository.get(dump_id))["regions"]
+    items = _result(repository.get(dump_id)).get("regions", [])
     return MemoryRegionPageSchema(
         items=[MemoryRegionSchema.model_validate(item) for item in items[offset : offset + limit]],
         total=len(items),
@@ -176,5 +198,5 @@ def memory_findings(
 ) -> list[MemoryFindingSchema]:
     return [
         MemoryFindingSchema.model_validate(item)
-        for item in _result(repository.get(dump_id))["findings"]
+        for item in _result(repository.get(dump_id)).get("findings", [])
     ]

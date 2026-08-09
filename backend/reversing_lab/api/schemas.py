@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 _FROM_ATTRS = ConfigDict(from_attributes=True)
 _MAX_DATABASE_INTEGER = 2**63 - 1
@@ -657,6 +657,22 @@ class MemoryProcessSchema(BaseModel):
     source_provider: str
 
 
+class MemoryModuleSchema(BaseModel):
+    pid: int
+    process_name: str | None
+    base_address: int
+    size: int
+    name: str
+    path: str | None
+    load_time: str | None
+    source_provider: str
+
+    @computed_field
+    @property
+    def base_address_hex(self) -> str:
+        return f"0x{self.base_address:x}"
+
+
 class MemoryRegionSchema(BaseModel):
     start: int
     end: int
@@ -665,6 +681,20 @@ class MemoryRegionSchema(BaseModel):
     suspicious: bool
     reason: str | None
     source_provider: str
+    pid: int | None = None
+    process_name: str | None = None
+    private_memory: bool | None = None
+    tag: str | None = None
+
+    @computed_field
+    @property
+    def start_hex(self) -> str:
+        return f"0x{self.start:x}"
+
+    @computed_field
+    @property
+    def end_hex(self) -> str:
+        return f"0x{self.end:x}"
 
 
 class MemoryFindingSchema(BaseModel):
@@ -681,6 +711,7 @@ class MemoryAnalysisSummarySchema(BaseModel):
     metadata: MemoryMetadataSchema
     provider: str
     process_count: int
+    module_count: int = 0
     region_count: int
     string_count: int
     urls: list[str]
@@ -693,6 +724,13 @@ class MemoryAnalysisSummarySchema(BaseModel):
 
 class MemoryProcessPageSchema(BaseModel):
     items: list[MemoryProcessSchema]
+    total: int
+    offset: int
+    limit: int
+
+
+class MemoryModulePageSchema(BaseModel):
+    items: list[MemoryModuleSchema]
     total: int
     offset: int
     limit: int
