@@ -41,6 +41,8 @@ authorization header, query string, and decoder input.
 | GET | `/binaries/{sha}/report?format=json|markdown|html` |
 
 Functions, strings, hex, graphs, and high-volume analysis are bounded or paginated.
+Memory module and region responses retain integer addresses and also include exact
+`base_address_hex` / `start_hex` / `end_hex` display fields for JavaScript clients.
 
 ## Projects, jobs, memory, and dynamic
 
@@ -53,7 +55,7 @@ Functions, strings, hex, graphs, and high-volume analysis are bounded or paginat
 | POST | `/jobs/{id}/cancel` |
 | POST / GET | `/memory-dumps`, `/memory-dumps/{id}` |
 | POST / GET | `/memory-dumps/{id}/analysis` |
-| GET | `/memory-dumps/{id}/processes`, `/regions`, `/findings` |
+| GET | `/memory-dumps/{id}/processes`, `/modules`, `/regions`, `/findings` |
 | GET | `/dynamic-analysis/readiness` |
 | POST | `/dynamic-analysis` |
 | GET / POST | `/dynamic-analysis/{run_id}`, `/cancel` |

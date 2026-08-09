@@ -7,7 +7,8 @@
 - synchronized disassembly/pseudo-C, CFG, call graph, flow summary;
 - evidence/provenance finding model, packing and obfuscation heuristics;
 - safe UPX and data-only decoder tools;
-- DB-backed jobs, memory triage, Volatility allowlist;
+- DB-backed jobs, memory triage, Volatility allowlist, normalized process/DLL/VAD
+  records, and evidenced RWX/private-executable findings;
 - disabled/mock dynamic provider and readiness UI;
 - persistent CTF workspace and report export;
 - Alembic baseline with conservative legacy SQLite bootstrap;
@@ -36,7 +37,8 @@
 
 - out-of-process parser/external-tool workers;
 - VM sandbox provider reference implementation with authenticated worker protocol;
-- Volatility modules, trees, DLLs, regions, handles, network, registry, and YARA models;
+- Volatility process trees, handles, network, registry, YARA, region byte export, and
+  bounded region disassembly models;
 - YARA/FLOSS/capa adapters and normalized provenance;
 - detector plugin registry and curated fixture corpus;
 - scalable PostgreSQL job claiming and optional Celery/RQ adapter;

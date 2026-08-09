@@ -73,6 +73,30 @@ class Settings(BaseSettings):
         default=100_000,
         description="Hard cap on dynamic events accepted from a sandbox provider.",
     )
+    max_memory_processes: int = Field(
+        default=10_000,
+        ge=1,
+        le=100_000,
+        description="Hard cap on normalized processes retained from a memory provider.",
+    )
+    max_memory_modules: int = Field(
+        default=50_000,
+        ge=1,
+        le=500_000,
+        description="Hard cap on normalized loaded modules retained per dump.",
+    )
+    max_memory_regions: int = Field(
+        default=100_000,
+        ge=1,
+        le=1_000_000,
+        description="Hard cap on normalized memory regions retained per dump.",
+    )
+    max_memory_findings: int = Field(
+        default=1_000,
+        ge=1,
+        le=100_000,
+        description="Hard cap on heuristic memory findings retained per dump.",
+    )
     max_audit_export_records: int = Field(
         default=100_000,
         ge=1,

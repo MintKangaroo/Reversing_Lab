@@ -27,6 +27,18 @@ class MemoryProcess:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryModule:
+    pid: int
+    process_name: str | None
+    base_address: int
+    size: int
+    name: str
+    path: str | None
+    load_time: str | None
+    source_provider: str
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryRegion:
     start: int
     end: int
@@ -35,6 +47,10 @@ class MemoryRegion:
     suspicious: bool
     reason: str | None
     source_provider: str
+    pid: int | None = None
+    process_name: str | None = None
+    private_memory: bool | None = None
+    tag: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,3 +77,4 @@ class MemoryAnalysisResult:
     provider: str
     unavailable: tuple[str, ...]
     warnings: tuple[str, ...]
+    modules: tuple[MemoryModule, ...] = ()

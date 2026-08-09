@@ -5,6 +5,7 @@ from .models import (
     MemoryAnalysisResult,
     MemoryFinding,
     MemoryMetadata,
+    MemoryModule,
     MemoryProcess,
     MemoryRegion,
 )
@@ -15,6 +16,7 @@ __all__ = [
     "MemoryAnalysisResult",
     "MemoryFinding",
     "MemoryMetadata",
+    "MemoryModule",
     "MemoryProcess",
     "MemoryRegion",
     "VolatilityAdapter",

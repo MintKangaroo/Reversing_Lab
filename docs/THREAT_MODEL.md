@@ -34,6 +34,8 @@ are operator-controlled but still validated before sensitive use.
 | path traversal | hash-derived paths, filename basename, strict SHA ID | operator-tampered DB paths need monitoring |
 | malformed parser input | format detection, typed errors, analysis bounds | native parser library bugs remain possible |
 | command injection | fixed argv, no shell, allowlisted plugins | external tool vulnerabilities remain |
+| forged or oversized Volatility output | typed normalization, per-record-class caps, provider attribution | a compromised tool can still fabricate bounded results |
+| RWX heuristic false positive | evidence, confidence, process/range context, explicit caveat | analyst correlation with bytes and behavior remains required |
 | decompression bomb | archive uploads unsupported | future archive support needs a dedicated extractor |
 | unsafe sample execution | API has no execution path, disabled provider | custom provider security is operator responsibility |
 | container escape | VM provider recommended; no Docker-only security claim | no production VM provider ships today |

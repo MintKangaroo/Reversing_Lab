@@ -10,6 +10,7 @@ export function MemoryWorkspace() {
   const [job, setJob] = useState(null);
   const [summary, setSummary] = useState(null);
   const [processes, setProcesses] = useState([]);
+  const [modules, setModules] = useState([]);
   const [regions, setRegions] = useState([]);
   const [findings, setFindings] = useState([]);
   const [tab, setTab] = useState('overview');
@@ -29,14 +30,16 @@ export function MemoryWorkspace() {
         const next = await api.job(job.id);
         setJob(next);
         if (next.state === 'completed') {
-          const [overview, processPage, regionPage, resultFindings] = await Promise.all([
+          const [overview, processPage, modulePage, regionPage, resultFindings] = await Promise.all([
             api.memorySummary(dump.id),
             api.memoryProcesses(dump.id),
+            api.memoryModules(dump.id),
             api.memoryRegions(dump.id),
             api.memoryFindings(dump.id),
           ]);
           setSummary(overview);
           setProcesses(processPage.items);
+          setModules(modulePage.items);
           setRegions(regionPage.items);
           setFindings(resultFindings);
         }
@@ -51,6 +54,10 @@ export function MemoryWorkspace() {
     setBusy(true);
     setError(null);
     setSummary(null);
+    setProcesses([]);
+    setModules([]);
+    setRegions([]);
+    setFindings([]);
     setJob(null);
     try {
       setDump(await api.uploadMemoryDump(file));
@@ -123,23 +130,25 @@ export function MemoryWorkspace() {
           {summary && (
             <div className="memory-results">
               <div className="result-tabs">
-                {['overview', 'processes', 'regions', 'findings'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item} {item === 'processes' ? `(${processes.length})` : item === 'regions' ? `(${regions.length})` : item === 'findings' ? `(${findings.length})` : ''}</button>)}
+                {['overview', 'processes', 'modules', 'regions', 'findings'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item} {item === 'processes' ? `(${summary.process_count})` : item === 'modules' ? `(${summary.module_count})` : item === 'regions' ? `(${summary.region_count})` : item === 'findings' ? `(${summary.finding_count})` : ''}</button>)}
               </div>
               {tab === 'overview' && (
                 <div className="memory-overview">
                   <div className="metric-grid">
-                    <div className="metric-card"><span>Provider</span><strong>{summary.provider}</strong><small>{summary.metadata.os_guess || 'OS unknown'}</small></div>
+                    <div className="metric-card"><span>Provider</span><strong>{summary.provider}</strong><small>{summary.process_count} processes · {summary.module_count} modules · {summary.region_count} regions</small></div>
                     <div className="metric-card tone-violet"><span>Strings</span><strong>{summary.string_count}</strong><small>Bounded extraction</small></div>
                     <div className="metric-card tone-green"><span>IOCs</span><strong>{summary.urls.length + summary.ip_addresses.length + summary.domains.length}</strong><small>URLs · IPs · domains</small></div>
                     <div className="metric-card tone-red"><span>Findings</span><strong>{summary.finding_count}</strong><small>Review required</small></div>
                   </div>
                   <div className="memory-iocs"><h3>Network artifacts</h3>{[...summary.urls, ...summary.ip_addresses, ...summary.domains].map((item) => <code key={item}>{item}</code>)}</div>
+                  {summary.warnings.length > 0 && <div className="memory-warnings"><h3>Provider warnings</h3>{summary.warnings.map((item) => <span key={item}>{item}</span>)}</div>}
                   <div className="unavailable-list"><h3>Unavailable from this provider</h3>{summary.unavailable.map((item) => <span key={item}>{item}</span>)}</div>
                 </div>
               )}
-              {tab === 'processes' && (processes.length ? <table className="data"><thead><tr><th>PID</th><th>PPID</th><th>Name</th><th>Threads</th><th>Provider</th></tr></thead><tbody>{processes.map((item) => <tr key={item.pid}><td className="mono">{item.pid}</td><td className="mono">{item.ppid ?? '—'}</td><td>{item.name}</td><td>{item.thread_count ?? 'unavailable'}</td><td>{item.source_provider}</td></tr>)}</tbody></table> : <Empty label="Process list unavailable" />)}
-              {tab === 'regions' && (regions.length ? <table className="data"><thead><tr><th>Range</th><th>Protection</th><th>Mapped file</th><th>Assessment</th></tr></thead><tbody>{regions.map((item) => <tr key={item.start}><td className="mono">{hex(item.start)}–{hex(item.end)}</td><td>{item.protection}</td><td>{item.mapped_file || '—'}</td><td>{item.reason || 'No signal'}</td></tr>)}</tbody></table> : <Empty label="Memory map unavailable" />)}
-              {tab === 'findings' && (findings.length ? findings.map((item) => <article className={`finding-card severity-${item.severity}`} key={item.id}><div className="finding-heading"><h2>{item.title}</h2><span>{Math.round(item.confidence * 100)}%</span></div><p>{item.summary}</p><div className="caveat"><b>False-positive caveat</b>{item.false_positive_note}</div></article>) : <Empty label="No memory findings" />)}
+              {tab === 'processes' && (processes.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID</th><th>PPID</th><th>Name</th><th>Threads</th><th>Modules</th><th>Provider</th></tr></thead><tbody>{processes.map((item) => <tr key={item.pid}><td className="mono">{item.pid}</td><td className="mono">{item.ppid ?? '—'}</td><td>{item.name}</td><td>{item.thread_count ?? 'unavailable'}</td><td>{item.module_count ?? 'unavailable'}</td><td>{item.source_provider}</td></tr>)}</tbody></table></div> : <Empty label="Process list unavailable" />)}
+              {tab === 'modules' && (modules.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID</th><th>Base</th><th>Size</th><th>Name</th><th>Path</th><th>Provider</th></tr></thead><tbody>{modules.map((item) => <tr key={`${item.pid}-${item.base_address_hex || item.base_address}`}><td className="mono">{item.pid}</td><td className="mono">{item.base_address_hex || hex(item.base_address)}</td><td>{item.size.toLocaleString()} B</td><td>{item.name}</td><td className="mono">{item.path || '—'}</td><td>{item.source_provider}</td></tr>)}</tbody></table></div> : <Empty label="Loaded modules unavailable" />)}
+              {tab === 'regions' && (regions.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID</th><th>Range</th><th>Protection</th><th>Private</th><th>Mapped file</th><th>Assessment</th></tr></thead><tbody>{regions.map((item) => <tr className={item.suspicious ? 'suspicious-row' : ''} key={`${item.pid ?? 'unknown'}-${item.start_hex || item.start}`}><td className="mono">{item.pid ?? '—'}</td><td className="mono">{item.start_hex || hex(item.start)}–{item.end_hex || hex(item.end)}</td><td>{item.protection}</td><td>{item.private_memory == null ? 'unavailable' : item.private_memory ? 'yes' : 'no'}</td><td>{item.mapped_file || '—'}</td><td>{item.reason || 'No signal'}</td></tr>)}</tbody></table></div> : <Empty label="Memory map unavailable" />)}
+              {tab === 'findings' && (findings.length ? findings.map((item) => <article className={`finding-card severity-${item.severity}`} key={item.id}><div className="finding-heading"><div><h2>{item.title}</h2><span className={`severity-label ${item.severity}`}>{item.severity}</span></div><span>{Math.round(item.confidence * 100)}%</span></div><p>{item.summary}</p>{item.evidence.length > 0 && <details><summary>Evidence ({item.evidence.length})</summary><ul className="evidence-list">{item.evidence.map((evidence) => <li key={evidence}>◆ {evidence}</li>)}</ul></details>}<div className="caveat"><b>False-positive caveat</b>{item.false_positive_note}</div></article>) : <Empty label="No memory findings" />)}
             </div>
           )}
         </>
