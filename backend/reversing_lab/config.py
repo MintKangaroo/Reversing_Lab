@@ -97,6 +97,12 @@ class Settings(BaseSettings):
         le=500_000,
         description="Hard cap on normalized network records retained per dump.",
     )
+    max_memory_handles: int = Field(
+        default=100_000,
+        ge=1,
+        le=1_000_000,
+        description="Hard cap on normalized handle records retained per dump.",
+    )
     max_memory_region_extract_bytes: int = Field(
         default=1024 * 1024,
         ge=4096,

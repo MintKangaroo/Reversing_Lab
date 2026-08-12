@@ -12,6 +12,7 @@ vi.mock('../api.js', () => ({
     memorySummary: vi.fn(),
     memoryProcesses: vi.fn(),
     memoryModules: vi.fn(),
+    memoryHandles: vi.fn(),
     memoryRegions: vi.fn(),
     inspectMemoryRegion: vi.fn(),
     memoryRegionArtifacts: vi.fn(),
@@ -49,6 +50,7 @@ beforeEach(() => {
     module_count: 1,
     region_count: 1,
     network_count: 1,
+    handle_count: 1,
     string_count: 4,
     urls: [],
     ip_addresses: [],
@@ -69,6 +71,15 @@ beforeEach(() => {
     items: [{
       pid: 44, base_address: 0x140000000, base_address_hex: '0x140000000', size: 8192, name: 'fixture.exe',
       path: 'C:\\fixture.exe', source_provider: 'volatility3',
+    }],
+    total: 1,
+  });
+  api.memoryHandles.mockResolvedValue({
+    items: [{
+      pid: 44, process_name: 'fixture.exe', object_type: 'File',
+      object_offset_hex: '0xffff800000003000', handle_value_hex: '0x88',
+      granted_access_hex: '0x12019f', name: '\\Device\\HarddiskVolume3\\fixture.bin',
+      source_provider: 'volatility3',
     }],
     total: 1,
   });
@@ -124,6 +135,7 @@ it('loads normalized Volatility modules, regions, warnings, and evidence', async
 
   expect(await screen.findByText('netscan unavailable', {}, { timeout: 2000 })).toBeVisible();
   expect(api.memoryModules).toHaveBeenCalledWith('dump-1');
+  expect(api.memoryHandles).toHaveBeenCalledWith('dump-1');
   expect(api.memoryNetwork).toHaveBeenCalledWith('dump-1');
 
   fireEvent.click(screen.getByRole('button', { name: 'processes (1)' }));
@@ -132,6 +144,21 @@ it('loads normalized Volatility modules, regions, warnings, and evidence', async
   fireEvent.click(screen.getByRole('button', { name: 'modules (1)' }));
   expect(screen.getByText('0x140000000')).toBeVisible();
   expect(screen.getAllByText('fixture.exe').length).toBeGreaterThan(0);
+
+  fireEvent.click(screen.getByRole('button', { name: 'handles (1)' }));
+  expect(screen.getByText('0xffff800000003000')).toBeVisible();
+  expect(screen.getByText('0x12019f')).toBeVisible();
+  fireEvent.change(screen.getByLabelText('Filter handles by object type'), {
+    target: { value: 'File' },
+  });
+  fireEvent.change(screen.getByLabelText('Filter handles by keyword'), {
+    target: { value: 'fixture.bin' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
+  await waitFor(() => expect(api.memoryHandles).toHaveBeenLastCalledWith('dump-1', {
+    object_type: 'File',
+    keyword: 'fixture.bin',
+  }));
 
   fireEvent.click(screen.getByRole('button', { name: 'regions (1)' }));
   expect(screen.getByText('PAGE_EXECUTE_READWRITE')).toBeVisible();

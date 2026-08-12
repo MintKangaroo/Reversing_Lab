@@ -46,7 +46,7 @@ anchor or sign exports in an independently controlled system.
 ## Parsing and analysis controls
 
 Parsers wrap malformed library inputs in typed errors. Settings bound functions,
-instructions, graph nodes, strings, memory processes/modules/regions/network records/findings,
+instructions, graph nodes, strings, memory processes/modules/handles/regions/network records/findings,
 explicit region bytes, events,
 output sizes, elapsed time, and concurrent jobs. A clean heuristic result is not a
 safety verdict.
@@ -56,7 +56,7 @@ safety verdict.
 Ghidra decompile, UPX unpack, and Volatility calls use fixed executable resolution and
 argument vectors, `shell=False`, timeouts, private temporary directories, bounded
 structured output, and sanitized environments. Volatility plugin names are chosen by
-server code from an allowlist. Process-list/tree, DLL, VAD, and network plugins fail independently;
+server code from an allowlist. Process-list/tree, DLL, handle, VAD, and network plugins fail independently;
 external output is normalized as untrusted data and each result retains its provider.
 RWX/private-executable VAD findings are heuristic and explicitly identify common JIT,
 instrumentation, and compatibility-layer false positives. UPX is explicit opt-in,
@@ -73,6 +73,11 @@ Network records are provider observations rather than IOC verdicts. Public remot
 addresses produce informational findings only. A wildcard listener is raised at low
 severity only when Volatility cannot attribute it to a process. API network filters are
 bounded artifact queries and are never forwarded to Volatility.
+
+Handle records are bounded provider observations. API filters apply only to the stored
+artifact and never become provider arguments. Object addresses, access masks, names,
+and types can be stale, incomplete, or fabricated by a compromised provider and must
+be correlated before drawing conclusions.
 
 Legacy whole-binary integration adapters are optional and should be placed in an
 additional process/container boundary for hostile production workloads. No optional

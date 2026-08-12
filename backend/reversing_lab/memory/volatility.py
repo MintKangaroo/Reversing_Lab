@@ -12,7 +12,13 @@ from pathlib import Path
 
 from ..config import get_settings
 from ..errors import IntegrationUnavailableError
-from .models import MemoryModule, MemoryNetworkArtifact, MemoryProcess, MemoryRegion
+from .models import (
+    MemoryHandle,
+    MemoryModule,
+    MemoryNetworkArtifact,
+    MemoryProcess,
+    MemoryRegion,
+)
 
 ALLOWED_PLUGINS: tuple[str, ...] = (
     "windows.info.Info",
@@ -21,6 +27,7 @@ ALLOWED_PLUGINS: tuple[str, ...] = (
     "windows.dlllist.DllList",
     "windows.vadinfo.VadInfo",
     "windows.netscan.NetScan",
+    "windows.handles.Handles",
 )
 
 _UNAVAILABLE_TEXT = {
@@ -43,6 +50,7 @@ class VolatilityResult:
     completed_plugins: tuple[str, ...]
     warnings: tuple[str, ...]
     network: tuple[MemoryNetworkArtifact, ...] = ()
+    handles: tuple[MemoryHandle, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -330,6 +338,43 @@ def _normalize_network(payload: object, provider: str) -> list[MemoryNetworkArti
     return normalized
 
 
+def _normalize_handles(payload: object, provider: str) -> list[MemoryHandle]:
+    normalized: list[MemoryHandle] = []
+    for row in _rows(payload):
+        pid = _integer(_value(row, "PID", "Pid"))
+        if pid is None or pid < 0:
+            continue
+        object_offset = _integer(
+            _value(row, "Offset", "Object", "ObjectOffset", "Object Address")
+        )
+        handle_value = _integer(_value(row, "HandleValue", "Handle Value", "Handle"))
+        granted_access = _integer(
+            _value(row, "GrantedAccess", "Granted Access", "Access")
+        )
+        if object_offset is not None and object_offset < 0:
+            object_offset = None
+        if handle_value is not None and handle_value < 0:
+            handle_value = None
+        if granted_access is not None and granted_access < 0:
+            granted_access = None
+        process_name = _text(_value(row, "Process", "ImageFileName"))
+        object_type = _text(_value(row, "Type", "ObjectType", "Object Type"))
+        name = _text(_value(row, "Name", "Details", "ObjectName", "Object Name"))
+        normalized.append(
+            MemoryHandle(
+                pid=pid,
+                process_name=process_name[:512] if process_name else None,
+                object_offset=object_offset,
+                handle_value=handle_value,
+                object_type=(object_type[:128] if object_type else "unknown"),
+                granted_access=granted_access,
+                name=name[:4096] if name else None,
+                source_provider=provider,
+            )
+        )
+    return normalized
+
+
 def _merge_processes(
     listed: list[MemoryProcess], tree: list[MemoryProcess], tree_available: bool
 ) -> list[MemoryProcess]:
@@ -577,6 +622,7 @@ class VolatilityAdapter:
         modules: list[MemoryModule] = []
         regions: list[MemoryRegion] = []
         network: list[MemoryNetworkArtifact] = []
+        handles: list[MemoryHandle] = []
         completed_plugins: list[str] = []
         warnings: list[str] = []
         specifications = (
@@ -609,6 +655,12 @@ class VolatilityAdapter:
                 _normalize_network,
                 network,
                 settings.max_memory_network_records,
+            ),
+            (
+                "windows.handles.Handles",
+                _normalize_handles,
+                handles,
+                settings.max_memory_handles,
             ),
         )
         for plugin, normalizer, destination, limit in specifications:
@@ -655,6 +707,14 @@ class VolatilityAdapter:
                 item.local_port if item.local_port is not None else -1,
             )
         )
+        handles.sort(
+            key=lambda item: (
+                item.pid,
+                item.object_type.casefold(),
+                item.handle_value if item.handle_value is not None else -1,
+                item.object_offset if item.object_offset is not None else -1,
+            )
+        )
         processes.sort(key=lambda item: item.pid)
         if "windows.dlllist.DllList" in completed_plugins:
             counts: dict[int, int] = {}
@@ -672,4 +732,5 @@ class VolatilityAdapter:
             completed_plugins=tuple(completed_plugins),
             warnings=tuple(warnings),
             network=tuple(network),
+            handles=tuple(handles),
         )

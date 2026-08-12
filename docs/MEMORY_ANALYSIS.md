@@ -21,7 +21,7 @@ not asserted to be a valid or recoverable credential.
 2. Keep **Use allowlisted Volatility plugins** enabled only when Volatility is
    available and the input is a compatible Windows full dump.
 3. Start analysis and monitor the bounded background job.
-4. Review **Processes**, **Modules**, **Regions**, **Network**, and **Findings**.
+4. Review **Processes**, **Modules**, **Handles**, **Regions**, **Network**, and **Findings**.
    Provider warnings show partial plugin failures without hiding successful results.
 5. To inspect bytes, select **Review** on one normalized VAD, choose x86 or x86-64,
    acknowledge the separate-artifact action, then select **Extract & inspect**.
@@ -35,6 +35,7 @@ GET  /api/jobs/{job_id}                        poll state/progress
 GET  /api/memory-dumps/{id}/analysis           summary
 GET  /api/memory-dumps/{id}/processes          paginated
 GET  /api/memory-dumps/{id}/modules            paginated
+GET  /api/memory-dumps/{id}/handles            paginated and filtered
 GET  /api/memory-dumps/{id}/regions            paginated
 GET  /api/memory-dumps/{id}/network            paginated and filtered
 GET  /api/memory-dumps/{id}/findings
@@ -46,12 +47,12 @@ GET  /api/memory-dumps/{id}/region-artifacts/{artifact_id}/download
 ```
 
 Results are compressed JSON artifacts rather than one database row per string, module,
-or region. Existing artifacts without a `modules` collection remain readable and
-report a module count of zero.
+handle, or region. Existing artifacts without `modules` or `handles` collections remain
+readable and report the corresponding count as zero.
 
-Addresses remain integers in the normalized artifact and API contract. Module and
-region responses additionally expose server-generated `base_address_hex`, `start_hex`,
-and `end_hex` fields so browser clients preserve exact 64-bit display values.
+Addresses remain integers in the normalized artifact and API contract. Module, handle,
+and region responses additionally expose server-generated exact hex fields so browser
+clients preserve 64-bit display values.
 
 ## Volatility 3 contract
 
@@ -71,6 +72,7 @@ The server, not the API caller, selects plugins. Current normalized execution us
 | `windows.dlllist.DllList` | PID, base, size, name, path, load time | module capability remains unavailable |
 | `windows.vadinfo.VadInfo` | PID, range, protection, private flag, mapping, tag | memory map remains unavailable |
 | `windows.netscan.NetScan` | protocol, local/remote endpoint, state, PID/owner, time | network capability remains unavailable |
+| `windows.handles.Handles` | PID/process, object offset/type, handle, access mask, name | handle capability remains unavailable |
 
 Each plugin runs separately. Missing symbols or a malformed result from one plugin is
 recorded as a provider warning and does not discard successful sibling plugin output.
@@ -110,6 +112,7 @@ RLAB_MAX_MEMORY_PROCESSES=10000
 RLAB_MAX_MEMORY_MODULES=50000
 RLAB_MAX_MEMORY_REGIONS=100000
 RLAB_MAX_MEMORY_NETWORK_RECORDS=50000
+RLAB_MAX_MEMORY_HANDLES=100000
 RLAB_MAX_MEMORY_REGION_EXTRACT_BYTES=1048576
 RLAB_MAX_MEMORY_FINDINGS=1000
 RLAB_MAX_EXTERNAL_OUTPUT_BYTES=2097152
@@ -145,10 +148,19 @@ Browsers, update agents, DNS clients, enterprise services, terminated processes,
 symbol gaps can all produce benign matches. Validate endpoints against authorization,
 time, process ancestry, and other evidence.
 
+## Handle observations
+
+The Handles tab queries the stored bounded artifact and supports exact PID and object
+type filters plus a bounded keyword over process, object type, name, and exact hex
+values. Filters are never passed to Volatility. Object offsets, handle values, and
+granted-access masks have server-rendered hex fields so large values remain exact in
+browser clients. A handle is provider evidence, not proof that the named object still
+exists or that an operation occurred; correlate it with process and timeline evidence.
+
 ## Known limitations
 
 - Minidumps currently receive metadata/basic triage, not the full Windows plugin plan.
-- Complete command-line coverage, thread details, handles, registry, and YARA are not
+- Complete command-line coverage, thread details, registry, and YARA are not
   yet normalized.
 - Region extraction currently supports only exact, complete Volatility VADs from
   compatible Windows full dumps. Arbitrary partial ranges, minidumps, Linux/macOS

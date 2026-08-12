@@ -68,8 +68,8 @@ api → analysis/analyzer/disassembler/decompiler/memory/dynamic → parser.mode
 3. a DB-backed job performs basic data-only triage.
 4. if explicitly requested and available, the adapter runs only server-selected
    Volatility plugins.
-5. `pslist`, `pstree`, `dlllist`, `vadinfo`, and `netscan` outputs are independently
-   normalized into bounded process-tree, loaded-module, region, and network records;
+5. `pslist`, `pstree`, `dlllist`, `handles`, `vadinfo`, and `netscan` outputs are independently
+   normalized into bounded process-tree, loaded-module, handle, region, and network records;
    one plugin failure does not discard successful sibling results.
 6. VAD permissions and mapping provenance produce reviewable RWX/private-executable
    heuristic findings. Public endpoints remain informational observations, while only
@@ -162,9 +162,9 @@ Decompiler output is explicitly estimated C-like code, never claimed as original
 ## Performance controls
 
 Settings cap upload sizes, instructions, functions, CFG/call graph nodes, strings,
-YARA matches, memory processes/modules/regions/network records/findings, explicit region bytes, dynamic events, job
+YARA matches, memory processes/modules/handles/regions/network records/findings, explicit region bytes, dynamic events, job
 concurrency, analysis/decompiler time, and external output. The API paginates
-functions, hex, memory processes/modules/regions/network records, and dynamic events.
+functions, hex, memory processes/modules/handles/regions/network records, and dynamic events.
 Large UI tables use windowed rendering.
 
 ## Technology decisions

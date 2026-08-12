@@ -695,6 +695,32 @@ class MemoryModuleSchema(BaseModel):
         return f"0x{self.base_address:x}"
 
 
+class MemoryHandleSchema(BaseModel):
+    pid: int
+    process_name: str | None
+    object_offset: int | None
+    handle_value: int | None
+    object_type: str
+    granted_access: int | None
+    name: str | None
+    source_provider: str
+
+    @computed_field
+    @property
+    def object_offset_hex(self) -> str | None:
+        return f"0x{self.object_offset:x}" if self.object_offset is not None else None
+
+    @computed_field
+    @property
+    def handle_value_hex(self) -> str | None:
+        return f"0x{self.handle_value:x}" if self.handle_value is not None else None
+
+    @computed_field
+    @property
+    def granted_access_hex(self) -> str | None:
+        return f"0x{self.granted_access:x}" if self.granted_access is not None else None
+
+
 class MemoryRegionSchema(BaseModel):
     start: int
     end: int
@@ -736,6 +762,7 @@ class MemoryAnalysisSummarySchema(BaseModel):
     module_count: int = 0
     region_count: int
     network_count: int = 0
+    handle_count: int = 0
     string_count: int
     urls: list[str]
     ip_addresses: list[str]
@@ -754,6 +781,13 @@ class MemoryProcessPageSchema(BaseModel):
 
 class MemoryModulePageSchema(BaseModel):
     items: list[MemoryModuleSchema]
+    total: int
+    offset: int
+    limit: int
+
+
+class MemoryHandlePageSchema(BaseModel):
+    items: list[MemoryHandleSchema]
     total: int
     offset: int
     limit: int
