@@ -21,7 +21,7 @@ not asserted to be a valid or recoverable credential.
 2. Keep **Use allowlisted Volatility plugins** enabled only when Volatility is
    available and the input is a compatible Windows full dump.
 3. Start analysis and monitor the bounded background job.
-4. Review **Processes**, **Modules**, **Handles**, **Regions**, **Network**, and **Findings**.
+4. Review **Processes**, **Threads**, **Modules**, **Handles**, **Regions**, **Network**, and **Findings**.
    Provider warnings show partial plugin failures without hiding successful results.
 5. To inspect bytes, select **Review** on one normalized VAD, choose x86 or x86-64,
    acknowledge the separate-artifact action, then select **Extract & inspect**.
@@ -34,6 +34,7 @@ POST /api/memory-dumps/{id}/analysis           {"use_volatility": true}
 GET  /api/jobs/{job_id}                        poll state/progress
 GET  /api/memory-dumps/{id}/analysis           summary
 GET  /api/memory-dumps/{id}/processes          paginated
+GET  /api/memory-dumps/{id}/threads            paginated and filtered
 GET  /api/memory-dumps/{id}/modules            paginated
 GET  /api/memory-dumps/{id}/handles            paginated and filtered
 GET  /api/memory-dumps/{id}/regions            paginated
@@ -47,11 +48,11 @@ GET  /api/memory-dumps/{id}/region-artifacts/{artifact_id}/download
 ```
 
 Results are compressed JSON artifacts rather than one database row per string, module,
-handle, or region. Existing artifacts without `modules` or `handles` collections remain
-readable and report the corresponding count as zero.
+handle, thread, or region. Existing artifacts without `modules`, `handles`, or `threads`
+collections remain readable and report the corresponding count as zero.
 
 Addresses remain integers in the normalized artifact and API contract. Module, handle,
-and region responses additionally expose server-generated exact hex fields so browser
+thread, and region responses additionally expose server-generated exact hex fields so browser
 clients preserve 64-bit display values.
 
 ## Volatility 3 contract
@@ -69,10 +70,12 @@ The server, not the API caller, selects plugins. Current normalized execution us
 |---|---|---|
 | `windows.pslist.PsList` | PID, PPID, name, thread count | process capability remains unavailable |
 | `windows.pstree.PsTree` | parent/child depth, orphan state, optional command line | tree capability remains unavailable |
+| `windows.cmdline.CmdLine` | PID/process command line merged into the process record | command-line capability remains unavailable |
 | `windows.dlllist.DllList` | PID, base, size, name, path, load time | module capability remains unavailable |
 | `windows.vadinfo.VadInfo` | PID, range, protection, private flag, mapping, tag | memory map remains unavailable |
 | `windows.netscan.NetScan` | protocol, local/remote endpoint, state, PID/owner, time | network capability remains unavailable |
 | `windows.handles.Handles` | PID/process, object offset/type, handle, access mask, name | handle capability remains unavailable |
+| `windows.threads.Threads` | PID/TID, ETHREAD, kernel/Win32 start address and path, lifetime | thread capability remains unavailable |
 
 Each plugin runs separately. Missing symbols or a malformed result from one plugin is
 recorded as a provider warning and does not discard successful sibling plugin output.
@@ -113,6 +116,7 @@ RLAB_MAX_MEMORY_MODULES=50000
 RLAB_MAX_MEMORY_REGIONS=100000
 RLAB_MAX_MEMORY_NETWORK_RECORDS=50000
 RLAB_MAX_MEMORY_HANDLES=100000
+RLAB_MAX_MEMORY_THREADS=200000
 RLAB_MAX_MEMORY_REGION_EXTRACT_BYTES=1048576
 RLAB_MAX_MEMORY_FINDINGS=1000
 RLAB_MAX_EXTERNAL_OUTPUT_BYTES=2097152
@@ -157,11 +161,26 @@ granted-access masks have server-rendered hex fields so large values remain exac
 browser clients. A handle is provider evidence, not proof that the named object still
 exists or that an operation occurred; correlate it with process and timeline evidence.
 
+## Command-line and thread observations
+
+`cmdline` is merged by PID into the bounded process collection and supersedes an
+optional tree-provided command line. Command lines can include access tokens, customer
+paths, search terms, or other sensitive arguments. They remain inside the owner-scoped
+compressed result artifact and should follow the same short-retention policy as the dump.
+
+The Threads tab queries only the stored bounded artifact and supports exact PID/TID plus
+a bounded keyword over process/path/time and server-rendered hex addresses. A missing exit
+time means no exit was observed in the provider record; it does not prove the thread was
+active at acquisition time. When a kernel or Win32 start address falls inside a VAD already
+flagged as writable-executable or private executable, the analyzer emits a medium-severity
+correlation finding. JIT runtimes, instrumentation, unpackers, stale records, and symbol
+gaps can produce benign matches, so inspect the VAD bytes and surrounding process evidence.
+
 ## Known limitations
 
 - Minidumps currently receive metadata/basic triage, not the full Windows plugin plan.
-- Complete command-line coverage, thread details, registry, and YARA are not
-  yet normalized.
+- Environment variables, registry artifacts, and YARA are not yet normalized. Command
+  lines and thread fields can remain unreadable when pages or symbols are unavailable.
 - Region extraction currently supports only exact, complete Volatility VADs from
   compatible Windows full dumps. Arbitrary partial ranges, minidumps, Linux/macOS
   extraction, and architectures other than x86/x86-64 are unavailable.

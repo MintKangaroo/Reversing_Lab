@@ -11,6 +11,7 @@ from .models import (
     MemoryNetworkArtifact,
     MemoryProcess,
     MemoryRegion,
+    MemoryThread,
 )
 from .volatility import ALLOWED_PLUGINS, RegionExtraction, VolatilityAdapter
 
@@ -24,6 +25,7 @@ __all__ = [
     "MemoryNetworkArtifact",
     "MemoryProcess",
     "MemoryRegion",
+    "MemoryThread",
     "RegionDisassembly",
     "RegionExtraction",
     "RegionInstruction",

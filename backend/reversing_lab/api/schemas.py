@@ -721,6 +721,39 @@ class MemoryHandleSchema(BaseModel):
         return f"0x{self.granted_access:x}" if self.granted_access is not None else None
 
 
+class MemoryThreadSchema(BaseModel):
+    pid: int
+    tid: int
+    process_name: str | None
+    object_offset: int | None
+    start_address: int | None
+    start_path: str | None
+    win32_start_address: int | None
+    win32_start_path: str | None
+    create_time: str | None
+    exit_time: str | None
+    source_provider: str
+
+    @computed_field
+    @property
+    def object_offset_hex(self) -> str | None:
+        return f"0x{self.object_offset:x}" if self.object_offset is not None else None
+
+    @computed_field
+    @property
+    def start_address_hex(self) -> str | None:
+        return f"0x{self.start_address:x}" if self.start_address is not None else None
+
+    @computed_field
+    @property
+    def win32_start_address_hex(self) -> str | None:
+        return (
+            f"0x{self.win32_start_address:x}"
+            if self.win32_start_address is not None
+            else None
+        )
+
+
 class MemoryRegionSchema(BaseModel):
     start: int
     end: int
@@ -763,6 +796,7 @@ class MemoryAnalysisSummarySchema(BaseModel):
     region_count: int
     network_count: int = 0
     handle_count: int = 0
+    thread_count: int = 0
     string_count: int
     urls: list[str]
     ip_addresses: list[str]
@@ -788,6 +822,13 @@ class MemoryModulePageSchema(BaseModel):
 
 class MemoryHandlePageSchema(BaseModel):
     items: list[MemoryHandleSchema]
+    total: int
+    offset: int
+    limit: int
+
+
+class MemoryThreadPageSchema(BaseModel):
+    items: list[MemoryThreadSchema]
     total: int
     offset: int
     limit: int

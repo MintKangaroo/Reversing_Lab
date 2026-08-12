@@ -68,12 +68,14 @@ api → analysis/analyzer/disassembler/decompiler/memory/dynamic → parser.mode
 3. a DB-backed job performs basic data-only triage.
 4. if explicitly requested and available, the adapter runs only server-selected
    Volatility plugins.
-5. `pslist`, `pstree`, `dlllist`, `handles`, `vadinfo`, and `netscan` outputs are independently
-   normalized into bounded process-tree, loaded-module, handle, region, and network records;
+5. `pslist`, `pstree`, `cmdline`, `threads`, `dlllist`, `handles`, `vadinfo`, and
+   `netscan` outputs are independently normalized into bounded process-tree,
+   command-line, thread, loaded-module, handle, region, and network records;
    one plugin failure does not discard successful sibling results.
 6. VAD permissions and mapping provenance produce reviewable RWX/private-executable
    heuristic findings. Public endpoints remain informational observations, while only
-   unattributed wildcard listeners receive a low-severity review signal.
+   unattributed wildcard listeners receive a low-severity review signal. Thread starts
+   inside already suspicious VADs produce a separate medium-severity correlation.
 7. large results are gzip JSON artifacts, not one row per module/socket/string/region.
 8. region bytes are extracted only by an acknowledged exact VAD request. A second job
    validates fixed Volatility output, stores bytes by SHA-256, and indexes ownership,
@@ -162,9 +164,11 @@ Decompiler output is explicitly estimated C-like code, never claimed as original
 ## Performance controls
 
 Settings cap upload sizes, instructions, functions, CFG/call graph nodes, strings,
-YARA matches, memory processes/modules/handles/regions/network records/findings, explicit region bytes, dynamic events, job
+YARA matches, memory processes/threads/modules/handles/regions/network records/findings,
+explicit region bytes, dynamic events, job
 concurrency, analysis/decompiler time, and external output. The API paginates
-functions, hex, memory processes/modules/handles/regions/network records, and dynamic events.
+functions, hex, memory processes/threads/modules/handles/regions/network records, and
+dynamic events.
 Large UI tables use windowed rendering.
 
 ## Technology decisions

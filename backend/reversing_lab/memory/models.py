@@ -68,6 +68,21 @@ class MemoryHandle:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryThread:
+    pid: int
+    tid: int
+    process_name: str | None
+    object_offset: int | None
+    start_address: int | None
+    start_path: str | None
+    win32_start_address: int | None
+    win32_start_path: str | None
+    create_time: str | None
+    exit_time: str | None
+    source_provider: str
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryRegion:
     start: int
     end: int
@@ -109,3 +124,4 @@ class MemoryAnalysisResult:
     modules: tuple[MemoryModule, ...] = ()
     network: tuple[MemoryNetworkArtifact, ...] = ()
     handles: tuple[MemoryHandle, ...] = ()
+    threads: tuple[MemoryThread, ...] = ()

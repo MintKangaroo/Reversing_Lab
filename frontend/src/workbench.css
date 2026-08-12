@@ -535,6 +535,9 @@ body.is-resizing { user-select: none; cursor: col-resize; }
 .memory-table-scroll { overflow: auto; }
 .memory-table-scroll table { min-width: 760px; }
 .memory-table-scroll .suspicious-row td { background: rgba(239,107,115,.055); }
+.memory-threads-view td span, .memory-threads-view td small { display: block; }
+.memory-threads-view td small { max-width: 280px; margin-top: 3px; color: var(--text-faint); overflow-wrap: anywhere; }
+.memory-results td.mono { max-width: 420px; overflow-wrap: anywhere; }
 .process-tree-name { display: inline-block; color: var(--text); }
 .memory-orphan { margin-left: 7px; padding: 2px 5px; border-radius: 3px; color: var(--yellow); background: rgba(215,168,77,.1); font-size: 8px; text-transform: uppercase; }
 .memory-network-view { min-width: 0; }

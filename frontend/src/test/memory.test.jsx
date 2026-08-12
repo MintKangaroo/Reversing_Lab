@@ -13,6 +13,7 @@ vi.mock('../api.js', () => ({
     memoryProcesses: vi.fn(),
     memoryModules: vi.fn(),
     memoryHandles: vi.fn(),
+    memoryThreads: vi.fn(),
     memoryRegions: vi.fn(),
     inspectMemoryRegion: vi.fn(),
     memoryRegionArtifacts: vi.fn(),
@@ -51,18 +52,20 @@ beforeEach(() => {
     region_count: 1,
     network_count: 1,
     handle_count: 1,
+    thread_count: 1,
     string_count: 4,
     urls: [],
     ip_addresses: [],
     domains: [],
     finding_count: 1,
-    unavailable: ['thread details'],
+    unavailable: ['environment variables'],
     warnings: ['netscan unavailable'],
   });
   api.memoryProcesses.mockResolvedValue({
     items: [{
       pid: 44, ppid: 4, name: 'fixture.exe', thread_count: 2, module_count: 1,
       tree_depth: 1, orphaned: false,
+      command_line: 'C:\\fixture.exe --authorized-test',
       source_provider: 'volatility3',
     }],
     total: 1,
@@ -79,6 +82,17 @@ beforeEach(() => {
       pid: 44, process_name: 'fixture.exe', object_type: 'File',
       object_offset_hex: '0xffff800000003000', handle_value_hex: '0x88',
       granted_access_hex: '0x12019f', name: '\\Device\\HarddiskVolume3\\fixture.bin',
+      source_provider: 'volatility3',
+    }],
+    total: 1,
+  });
+  api.memoryThreads.mockResolvedValue({
+    items: [{
+      pid: 44, tid: 88, process_name: 'fixture.exe',
+      object_offset_hex: '0xffff800000004000',
+      start_address_hex: '0xfffff80000100000', start_path: 'ntoskrnl.exe',
+      win32_start_address_hex: '0x180001000', win32_start_path: 'fixture.exe',
+      create_time: '2026-08-12 09:00:00', exit_time: null,
       source_provider: 'volatility3',
     }],
     total: 1,
@@ -136,10 +150,27 @@ it('loads normalized Volatility modules, regions, warnings, and evidence', async
   expect(await screen.findByText('netscan unavailable', {}, { timeout: 2000 })).toBeVisible();
   expect(api.memoryModules).toHaveBeenCalledWith('dump-1');
   expect(api.memoryHandles).toHaveBeenCalledWith('dump-1');
+  expect(api.memoryThreads).toHaveBeenCalledWith('dump-1');
   expect(api.memoryNetwork).toHaveBeenCalledWith('dump-1');
 
   fireEvent.click(screen.getByRole('button', { name: 'processes (1)' }));
   expect(screen.getByText('↳ fixture.exe')).toBeVisible();
+  expect(screen.getByText('C:\\fixture.exe --authorized-test')).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'threads (1)' }));
+  expect(screen.getByText('0xffff800000004000')).toBeVisible();
+  expect(screen.getByText('0x180001000')).toBeVisible();
+  fireEvent.change(screen.getByLabelText('Filter threads by TID'), {
+    target: { value: '88' },
+  });
+  fireEvent.change(screen.getByLabelText('Filter threads by keyword'), {
+    target: { value: 'fixture.exe' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
+  await waitFor(() => expect(api.memoryThreads).toHaveBeenLastCalledWith('dump-1', {
+    tid: '88',
+    keyword: 'fixture.exe',
+  }));
 
   fireEvent.click(screen.getByRole('button', { name: 'modules (1)' }));
   expect(screen.getByText('0x140000000')).toBeVisible();
