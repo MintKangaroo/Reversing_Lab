@@ -199,3 +199,11 @@ database rows. The workbench provides bounded paged hex, analyst-selected x86/x8
 Capstone decoding, artifact download, provider/hash provenance, and execution caveats.
 Path traversal, malformed selection, unavailable provider, integrity, migration, API,
 and UI flows have dedicated safe-fixture tests.
+
+Handle-normalization follow-up on 2026-08-12: the server-selected Volatility plan now
+also normalizes bounded `windows.handles.Handles` output. The API and Memory workbench
+expose PID/object-type/keyword filters over the stored result artifact, exact hex fields
+for object offsets, handle values, and access masks, provider provenance, and explicit
+stale/incomplete-evidence caveats. Plugin failure remains isolated from sibling results.
+Focused verification passed eight backend Volatility/analyzer tests, direct persisted
+artifact and OpenAPI contract checks, all 20 frontend tests, and the production build.

@@ -158,6 +158,10 @@ export const api = {
   memorySummary: (id) => request(`/memory-dumps/${id}/analysis`),
   memoryProcesses: (id) => request(`/memory-dumps/${id}/processes`),
   memoryModules: (id) => request(`/memory-dumps/${id}/modules`),
+  memoryHandles: (id, params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/memory-dumps/${id}/handles${query.size ? `?${query}` : ''}`);
+  },
   memoryRegions: (id) => request(`/memory-dumps/${id}/regions`),
   inspectMemoryRegion: (id, region, architecture = 'x86_64') =>
     request(`/memory-dumps/${id}/regions/inspect`, {

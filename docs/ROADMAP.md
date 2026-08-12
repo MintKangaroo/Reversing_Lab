@@ -38,7 +38,7 @@
 
 - out-of-process parser/external-tool workers;
 - VM sandbox provider reference implementation with authenticated worker protocol;
-- Volatility handles, registry, YARA, and additional OS/architecture region providers;
+- Volatility registry, YARA, and additional OS/architecture region providers;
 - YARA/FLOSS/capa adapters and normalized provenance;
 - detector plugin registry and curated fixture corpus;
 - scalable PostgreSQL job claiming and optional Celery/RQ adapter;

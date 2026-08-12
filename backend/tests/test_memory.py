@@ -12,6 +12,7 @@ import pytest
 from reversing_lab.errors import IntegrationUnavailableError
 from reversing_lab.memory.models import (
     MemoryAnalysisResult,
+    MemoryHandle,
     MemoryMetadata,
     MemoryModule,
     MemoryNetworkArtifact,
@@ -131,6 +132,7 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
             max_memory_modules=100,
             max_memory_regions=100,
             max_memory_network_records=100,
+            max_memory_handles=100,
         ),
     )
     observed = {"commands": []}
@@ -193,6 +195,17 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
                     "Created": "2026-08-09 03:00:00",
                 }
             ],
+            "windows.handles.Handles": [
+                {
+                    "PID": 120,
+                    "Process": "smss.exe",
+                    "Offset": "0xffff800000003000",
+                    "HandleValue": "0x44",
+                    "Type": "File",
+                    "GrantedAccess": "0x12019f",
+                    "Name": r"\\Device\\HarddiskVolume3\\Windows\\fixture.bin",
+                }
+            ],
         }
         kwargs["stdout"].write(json.dumps(payloads[command[-1]]).encode())
         kwargs["stdout"].flush()
@@ -210,6 +223,9 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
     assert result.regions[0].private_memory is True
     assert result.network[0].remote_address == "1.1.1.1"
     assert result.network[0].offset == 0xFFFF800000001000
+    assert result.handles[0].pid == 120
+    assert result.handles[0].handle_value == 0x44
+    assert result.handles[0].granted_access == 0x12019F
     assert result.warnings == ()
     assert [command[-1] for command in observed["commands"]] == [
         "windows.pslist.PsList",
@@ -217,6 +233,7 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
         "windows.dlllist.DllList",
         "windows.vadinfo.VadInfo",
         "windows.netscan.NetScan",
+        "windows.handles.Handles",
     ]
     assert observed["shell"] is False
     with pytest.raises(ValueError):
@@ -375,6 +392,7 @@ def test_volatility_plugin_failures_are_isolated(tmp_path: Path, monkeypatch) ->
         "windows.pstree.PsTree",
         "windows.vadinfo.VadInfo",
         "windows.netscan.NetScan",
+        "windows.handles.Handles",
     )
     assert result.warnings == ("dlllist symbols unavailable",)
 
@@ -392,6 +410,7 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
             max_memory_modules=1,
             max_memory_regions=1,
             max_memory_network_records=1,
+            max_memory_handles=1,
         ),
     )
 
@@ -407,6 +426,11 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
                 {"Proto": "TCPv4", "LocalAddr": "127.0.0.1", "LocalPort": 80},
                 {"Proto": "UDPv4", "LocalAddr": "0.0.0.0", "LocalPort": 53},
             ]
+        if plugin == "windows.handles.Handles":
+            return [
+                {"PID": 1, "Type": "File", "HandleValue": "0x10"},
+                {"PID": 2, "Type": "Key", "HandleValue": "0x20"},
+            ]
         return []
 
     monkeypatch.setattr(VolatilityAdapter, "_run", fake_run)
@@ -414,10 +438,15 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
 
     assert [process.pid for process in result.processes] == [1]
     assert len(result.network) == 1
+    assert len(result.handles) == 1
     assert "returned 2 records" in result.warnings[0]
     assert "configured maximum of 1" in result.warnings[0]
     assert any(
         "windows.netscan.NetScan returned 2 records" in warning
+        for warning in result.warnings
+    )
+    assert any(
+        "windows.handles.Handles returned 2 records" in warning
         for warning in result.warnings
     )
 
@@ -494,7 +523,10 @@ def test_memory_analyzer_emits_conservative_network_findings(
         processes=(),
         modules=(),
         regions=(),
-        completed_plugins=("windows.netscan.NetScan",),
+        completed_plugins=(
+            "windows.netscan.NetScan",
+            "windows.handles.Handles",
+        ),
         warnings=(),
         network=(
             MemoryNetworkArtifact(
@@ -524,6 +556,18 @@ def test_memory_analyzer_emits_conservative_network_findings(
                 offset=0x2000,
             ),
         ),
+        handles=(
+            MemoryHandle(
+                pid=77,
+                process_name="browser-fixture.exe",
+                object_offset=0x3000,
+                handle_value=0x40,
+                object_type="File",
+                granted_access=0x12019F,
+                name=r"\\Device\\HarddiskVolume3\\cache.bin",
+                source_provider="volatility3",
+            ),
+        ),
     )
     monkeypatch.setattr(VolatilityAdapter, "is_available", lambda self: True)
     monkeypatch.setattr(
@@ -538,9 +582,11 @@ def test_memory_analyzer_emits_conservative_network_findings(
     ]
     assert [finding.severity for finding in result.findings] == ["info", "low"]
     assert "network connections" not in result.unavailable
+    assert "handles" not in result.unavailable
+    assert result.handles[0].object_type == "File"
 
 
-def test_memory_module_region_and_network_api(api_client, monkeypatch) -> None:
+def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) -> None:
     from reversing_lab.api.routes import memory
 
     result = MemoryAnalysisResult(
@@ -615,6 +661,18 @@ def test_memory_module_region_and_network_api(api_client, monkeypatch) -> None:
                 offset=0xFFFF800000002000,
             ),
         ),
+        handles=(
+            MemoryHandle(
+                pid=44,
+                process_name="fixture.exe",
+                object_offset=0xFFFF800000003000,
+                handle_value=0x88,
+                object_type="File",
+                granted_access=0x12019F,
+                name=r"\\Device\\HarddiskVolume3\\fixture.bin",
+                source_provider="volatility3",
+            ),
+        ),
     )
     monkeypatch.setattr(memory, "analyze_memory", lambda *args, **kwargs: result)
     upload = api_client.post(
@@ -631,6 +689,10 @@ def test_memory_module_region_and_network_api(api_client, monkeypatch) -> None:
     processes = api_client.get(f"/api/memory-dumps/{dump_id}/processes").json()
     modules = api_client.get(f"/api/memory-dumps/{dump_id}/modules").json()
     regions = api_client.get(f"/api/memory-dumps/{dump_id}/regions").json()
+    handles = api_client.get(
+        f"/api/memory-dumps/{dump_id}/handles",
+        params={"pid": 44, "object_type": "file", "keyword": "0x12019f"},
+    ).json()
     network = api_client.get(
         f"/api/memory-dumps/{dump_id}/network",
         params={
@@ -642,6 +704,7 @@ def test_memory_module_region_and_network_api(api_client, monkeypatch) -> None:
     ).json()
     assert summary["module_count"] == 1
     assert summary["network_count"] == 1
+    assert summary["handle_count"] == 1
     assert processes["items"][0]["tree_depth"] == 2
     assert processes["items"][0]["orphaned"] is False
     assert modules["total"] == 1
@@ -650,11 +713,21 @@ def test_memory_module_region_and_network_api(api_client, monkeypatch) -> None:
     assert regions["items"][0]["pid"] == 44
     assert regions["items"][0]["start_hex"] == "0xffff800000001000"
     assert regions["items"][0]["end_hex"] == "0xffff800000001fff"
+    assert handles["total"] == 1
+    assert handles["items"][0]["object_offset_hex"] == "0xffff800000003000"
+    assert handles["items"][0]["handle_value_hex"] == "0x88"
+    assert handles["items"][0]["granted_access_hex"] == "0x12019f"
     assert network["total"] == 1
     assert network["items"][0]["offset_hex"] == "0xffff800000002000"
     assert (
         api_client.get(
             f"/api/memory-dumps/{dump_id}/network", params={"keyword": "x" * 257}
+        ).status_code
+        == 422
+    )
+    assert (
+        api_client.get(
+            f"/api/memory-dumps/{dump_id}/handles", params={"keyword": "x" * 257}
         ).status_code
         == 422
     )

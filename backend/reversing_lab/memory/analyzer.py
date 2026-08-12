@@ -262,6 +262,7 @@ def analyze_memory(
     modules = ()
     regions = ()
     network = ()
+    handles = ()
     provider = "basic"
     unavailable = [
         "process list",
@@ -287,6 +288,7 @@ def analyze_memory(
             modules = volatility_result.modules
             regions = volatility_result.regions
             network = volatility_result.network
+            handles = volatility_result.handles
             warnings.extend(volatility_result.warnings)
             provider = volatility.name
             completed = set(volatility_result.completed_plugins)
@@ -302,6 +304,8 @@ def analyze_memory(
                 unavailable.remove("memory protection map")
             if "windows.netscan.NetScan" in completed:
                 unavailable.remove("network connections")
+            if "windows.handles.Handles" in completed:
+                unavailable.remove("handles")
         else:
             warnings.append(
                 "Volatility 3 is unavailable; returned basic metadata, strings, and IOCs only."
@@ -337,4 +341,5 @@ def analyze_memory(
         warnings=tuple(warnings),
         modules=modules,
         network=network,
+        handles=handles,
     )

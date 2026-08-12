@@ -5,6 +5,7 @@ from .inspection import RegionDisassembly, RegionInstruction, disassemble_region
 from .models import (
     MemoryAnalysisResult,
     MemoryFinding,
+    MemoryHandle,
     MemoryMetadata,
     MemoryModule,
     MemoryNetworkArtifact,
@@ -17,6 +18,7 @@ __all__ = [
     "ALLOWED_PLUGINS",
     "MemoryAnalysisResult",
     "MemoryFinding",
+    "MemoryHandle",
     "MemoryMetadata",
     "MemoryModule",
     "MemoryNetworkArtifact",

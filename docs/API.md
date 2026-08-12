@@ -41,8 +41,8 @@ authorization header, query string, and decoder input.
 | GET | `/binaries/{sha}/report?format=json|markdown|html` |
 
 Functions, strings, hex, graphs, and high-volume analysis are bounded or paginated.
-Memory module and region responses retain integer addresses and also include exact
-`base_address_hex` / `start_hex` / `end_hex` display fields for JavaScript clients.
+Memory module, handle, and region responses retain integer values and also include exact
+hex display fields for JavaScript clients.
 
 ## Projects, jobs, memory, and dynamic
 
@@ -55,7 +55,7 @@ Memory module and region responses retain integer addresses and also include exa
 | POST | `/jobs/{id}/cancel` |
 | POST / GET | `/memory-dumps`, `/memory-dumps/{id}` |
 | POST / GET | `/memory-dumps/{id}/analysis` |
-| GET | `/memory-dumps/{id}/processes`, `/modules`, `/regions`, `/network`, `/findings` |
+| GET | `/memory-dumps/{id}/processes`, `/modules`, `/handles`, `/regions`, `/network`, `/findings` |
 | POST | `/memory-dumps/{id}/regions/inspect` |
 | GET | `/memory-dumps/{id}/region-artifacts` |
 | GET | `/memory-dumps/{id}/region-artifacts/{artifact_id}` |
@@ -69,6 +69,11 @@ Memory module and region responses retain integer addresses and also include exa
 `pid`, case-insensitive `protocol`/`state`, and bounded `keyword` filters. Filtering
 operates only on the already bounded result artifact and never becomes a plugin or CLI
 argument.
+
+`/memory-dumps/{id}/handles` supports the same bounded pagination, exact `pid`,
+case-insensitive exact `object_type`, and bounded `keyword` filters. Keyword matching
+includes process/name/type and server-rendered object/handle/access hex values. Filters
+operate only on the stored bounded artifact.
 
 Region inspection accepts only a normalized PID/start pair, `architecture=x86|x86_64`,
 and literal `acknowledged=true`. It returns a `memory-region-inspection` job. On

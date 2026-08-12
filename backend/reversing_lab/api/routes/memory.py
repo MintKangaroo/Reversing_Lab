@@ -27,6 +27,8 @@ from ..schemas import (
     MemoryAnalysisSummarySchema,
     MemoryDumpSchema,
     MemoryFindingSchema,
+    MemoryHandlePageSchema,
+    MemoryHandleSchema,
     MemoryModulePageSchema,
     MemoryModuleSchema,
     MemoryNetworkArtifactPageSchema,
@@ -145,6 +147,7 @@ def memory_analysis_summary(
         module_count=len(payload.get("modules", [])),
         region_count=len(payload.get("regions", [])),
         network_count=len(payload.get("network", [])),
+        handle_count=len(payload.get("handles", [])),
         string_count=len(payload.get("strings", [])),
         urls=payload.get("urls", []),
         ip_addresses=payload.get("ip_addresses", []),
@@ -200,6 +203,53 @@ def memory_regions(
     items = _result(repository.get(dump_id)).get("regions", [])
     return MemoryRegionPageSchema(
         items=[MemoryRegionSchema.model_validate(item) for item in items[offset : offset + limit]],
+        total=len(items),
+        offset=offset,
+        limit=limit,
+    )
+
+
+@router.get("/{dump_id}/handles", response_model=MemoryHandlePageSchema)
+def memory_handles(
+    dump_id: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1_000),
+    pid: int | None = Query(default=None, ge=0, le=2**32 - 1),
+    object_type: str | None = Query(default=None, max_length=128),
+    keyword: str | None = Query(default=None, max_length=256),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> MemoryHandlePageSchema:
+    items = _result(repository.get(dump_id)).get("handles", [])
+    if pid is not None:
+        items = [item for item in items if item.get("pid") == pid]
+    if object_type:
+        expected = object_type.casefold()
+        items = [
+            item
+            for item in items
+            if str(item.get("object_type", "")).casefold() == expected
+        ]
+    if keyword:
+        expected = keyword.casefold()
+
+        def search_text(item: dict[str, object]) -> str:
+            values = [
+                str(item.get("process_name", "")),
+                str(item.get("object_type", "")),
+                str(item.get("name", "")),
+            ]
+            for field in ("object_offset", "handle_value", "granted_access"):
+                value = item.get(field)
+                if isinstance(value, int) and value >= 0:
+                    values.append(f"0x{value:x}")
+            return " ".join(values).casefold()
+
+        items = [item for item in items if expected in search_text(item)]
+    return MemoryHandlePageSchema(
+        items=[
+            MemoryHandleSchema.model_validate(item)
+            for item in items[offset : offset + limit]
+        ],
         total=len(items),
         offset=offset,
         limit=limit,

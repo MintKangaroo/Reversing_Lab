@@ -91,6 +91,23 @@ describe('API client', () => {
     );
   });
 
+  it('encodes memory handle filters as query parameters', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({
+      body: { items: [], total: 0, offset: 0, limit: 200 },
+    }));
+
+    await api.memoryHandles('dump-1', {
+      pid: 44,
+      object_type: 'File',
+      keyword: 'fixture.bin',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/memory-dumps/dump-1/handles?pid=44&object_type=File&keyword=fixture.bin',
+      {},
+    );
+  });
+
   it('uses a fixed acknowledged contract for memory region inspection', async () => {
     global.fetch = vi.fn().mockResolvedValue(response({
       body: { id: 'region-job-1', state: 'queued' },

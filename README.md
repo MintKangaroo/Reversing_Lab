@@ -41,7 +41,7 @@ docker compose up --build
 5. `Reports`에서 JSON, Markdown 또는 HTML 보고서를 내려받습니다.
 6. `Settings`에서 최근 변경 감사 기록을 JSONL로 내보내거나 내 데이터 정리 dry-run을 확인합니다.
 7. 메모리 덤프는 `Memory`에서 업로드합니다. Volatility 3가 있으면 process tree, loaded
-   module, VAD region, network endpoint를 함께 수집하고, 없으면 기본 문자열·IOC 분석으로
+   module, handle, VAD region, network endpoint를 함께 수집하고, 없으면 기본 문자열·IOC 분석으로
    안전하게 전환됩니다.
 8. VAD bytes가 필요할 때만 `Regions`에서 `Review`를 누르고 아키텍처와 확인 항목을 검토한
    뒤 `Extract & inspect`를 실행합니다. 결과는 원본 덤프와 분리된 hash artifact로 저장되며
@@ -164,7 +164,7 @@ SHA-256 hash chain을 계산합니다. 외부 archive로 옮긴 뒤 파일 내�
 |---|---|---|
 | Ghidra | `GHIDRA_HOME=/opt/ghidra` | 함수 단위 headless decompile |
 | UPX | `RLAB_UPX_PATH=upx` | 사용자 확인 후 별도 unpacked artifact 생성 |
-| Volatility 3 | `RLAB_VOLATILITY_PATH=vol` | process tree/module/VAD/network 정규화와 명시적 VAD 추출 |
+| Volatility 3 | `RLAB_VOLATILITY_PATH=vol` | process tree/module/handle/VAD/network 정규화와 명시적 VAD 추출 |
 | radare2 | `RLAB_RADARE2_PATH=r2` | 선택적 whole-binary 분석 |
 | Binary Ninja | 라이선스된 Python module | 가용성 및 선택적 adapter |
 
@@ -207,7 +207,7 @@ cd backend && ../.venv/bin/pytest
 cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 기준은 SQLite backend 128개와 PostgreSQL 전용 계약 1개 skip, frontend 19개 테스트 통과,
+현재 기준은 SQLite backend 128개와 PostgreSQL 전용 계약 1개 skip, frontend 20개 테스트 통과,
 production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지
 않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend build/audit,
 Alembic drift와 whitespace를 검사합니다.
@@ -216,7 +216,7 @@ Alembic drift와 whitespace를 검사합니다.
 
 - 실제 VM sandbox provider와 RetDec/r2ghidra adapter는 아직 구현되지 않았습니다.
 - Volatility VAD 추출은 Windows full dump, x86/x86-64, 정규화된 전체 VAD, 기본 1 MiB 상한에
-  한정됩니다. handle, registry, YARA와 임의 부분 범위 추출은 아직 지원하지 않습니다.
+  한정됩니다. registry, YARA와 임의 부분 범위 추출은 아직 지원하지 않습니다.
 - 함수 경계, 타입, indirect control flow, pseudo-C는 휴리스틱이므로 수동 검증이 필요합니다.
 - PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 OIDC, server-side rate limiting이
   추가로 필요합니다.

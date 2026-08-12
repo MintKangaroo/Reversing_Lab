@@ -56,6 +56,18 @@ class MemoryModule:
 
 
 @dataclass(frozen=True, slots=True)
+class MemoryHandle:
+    pid: int
+    process_name: str | None
+    object_offset: int | None
+    handle_value: int | None
+    object_type: str
+    granted_access: int | None
+    name: str | None
+    source_provider: str
+
+
+@dataclass(frozen=True, slots=True)
 class MemoryRegion:
     start: int
     end: int
@@ -96,3 +108,4 @@ class MemoryAnalysisResult:
     warnings: tuple[str, ...]
     modules: tuple[MemoryModule, ...] = ()
     network: tuple[MemoryNetworkArtifact, ...] = ()
+    handles: tuple[MemoryHandle, ...] = ()
