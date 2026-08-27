@@ -41,7 +41,7 @@ authorization header, query string, and decoder input.
 | GET | `/binaries/{sha}/report?format=json|markdown|html` |
 
 Functions, strings, hex, graphs, and high-volume analysis are bounded or paginated.
-Memory module, handle, and region responses retain integer values and also include exact
+Memory module, handle, thread, and region responses retain integer values and also include exact
 hex display fields for JavaScript clients.
 
 ## Projects, jobs, memory, and dynamic
@@ -55,7 +55,7 @@ hex display fields for JavaScript clients.
 | POST | `/jobs/{id}/cancel` |
 | POST / GET | `/memory-dumps`, `/memory-dumps/{id}` |
 | POST / GET | `/memory-dumps/{id}/analysis` |
-| GET | `/memory-dumps/{id}/processes`, `/modules`, `/handles`, `/regions`, `/network`, `/findings` |
+| GET | `/memory-dumps/{id}/processes`, `/threads`, `/modules`, `/handles`, `/regions`, `/network`, `/findings` |
 | POST | `/memory-dumps/{id}/regions/inspect` |
 | GET | `/memory-dumps/{id}/region-artifacts` |
 | GET | `/memory-dumps/{id}/region-artifacts/{artifact_id}` |
@@ -74,6 +74,10 @@ argument.
 case-insensitive exact `object_type`, and bounded `keyword` filters. Keyword matching
 includes process/name/type and server-rendered object/handle/access hex values. Filters
 operate only on the stored bounded artifact.
+
+`/memory-dumps/{id}/threads` supports bounded pagination, exact `pid` and `tid`, and a
+bounded `keyword` over process/path/time and exact server-rendered ETHREAD/start-address
+hex values. Filters operate only on the stored artifact and never become plugin arguments.
 
 Region inspection accepts only a normalized PID/start pair, `architecture=x86|x86_64`,
 and literal `acknowledged=true`. It returns a `memory-region-inspection` job. On

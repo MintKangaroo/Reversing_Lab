@@ -7,8 +7,8 @@
 - synchronized disassembly/pseudo-C, CFG, call graph, flow summary;
 - evidence/provenance finding model, packing and obfuscation heuristics;
 - safe UPX and data-only decoder tools;
-- DB-backed jobs, memory triage, Volatility allowlist, normalized process tree/DLL/VAD/
-  network records, evidenced review findings, and explicit bounded VAD hex/disassembly
+- DB-backed jobs, memory triage, Volatility allowlist, normalized process tree/command
+  line/thread/DLL/handle/VAD/network records, evidenced review findings, and explicit bounded VAD hex/disassembly
   artifacts;
 - disabled/mock dynamic provider and readiness UI;
 - persistent CTF workspace and report export;

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import time
 from pathlib import Path
@@ -18,6 +19,7 @@ from reversing_lab.memory.models import (
     MemoryNetworkArtifact,
     MemoryProcess,
     MemoryRegion,
+    MemoryThread,
 )
 from reversing_lab.memory.volatility import (
     RegionExtraction,
@@ -133,6 +135,7 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
             max_memory_regions=100,
             max_memory_network_records=100,
             max_memory_handles=100,
+            max_memory_threads=100,
         ),
     )
     observed = {"commands": []}
@@ -167,6 +170,13 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
                     "Size": 4096,
                     "Name": "ntoskrnl.exe",
                     "Path": r"C:\\Windows\\System32\\ntoskrnl.exe",
+                }
+            ],
+            "windows.cmdline.CmdLine": [
+                {
+                    "PID": 120,
+                    "Process": "smss.exe",
+                    "Args": r"\\SystemRoot\\System32\\smss.exe --fixture",
                 }
             ],
             "windows.vadinfo.VadInfo": [
@@ -206,6 +216,19 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
                     "Name": r"\\Device\\HarddiskVolume3\\Windows\\fixture.bin",
                 }
             ],
+            "windows.threads.Threads": [
+                {
+                    "Offset": "0xffff800000004000",
+                    "PID": 120,
+                    "TID": 124,
+                    "StartAddress": "0xfffff80000100000",
+                    "StartPath": "ntoskrnl.exe",
+                    "Win32StartAddress": "0x400100",
+                    "Win32StartPath": "smss.exe",
+                    "CreateTime": "2026-08-12 09:00:00",
+                    "ExitTime": "N/A",
+                }
+            ],
         }
         kwargs["stdout"].write(json.dumps(payloads[command[-1]]).encode())
         kwargs["stdout"].flush()
@@ -217,7 +240,7 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
     assert result.processes[0].module_count == 1
     assert result.processes[1].pid == 120
     assert result.processes[1].tree_depth == 1
-    assert result.processes[1].command_line.endswith("smss.exe")
+    assert result.processes[1].command_line.endswith("smss.exe --fixture")
     assert result.modules[0].base_address == 0x180000000
     assert result.regions[0].suspicious is True
     assert result.regions[0].private_memory is True
@@ -226,14 +249,20 @@ def test_volatility_adapter_uses_allowlisted_fixed_plugin(
     assert result.handles[0].pid == 120
     assert result.handles[0].handle_value == 0x44
     assert result.handles[0].granted_access == 0x12019F
+    assert result.threads[0].process_name == "smss.exe"
+    assert result.threads[0].tid == 124
+    assert result.threads[0].object_offset == 0xFFFF800000004000
+    assert result.threads[0].win32_start_address == 0x400100
     assert result.warnings == ()
     assert [command[-1] for command in observed["commands"]] == [
         "windows.pslist.PsList",
         "windows.pstree.PsTree",
+        "windows.cmdline.CmdLine",
         "windows.dlllist.DllList",
         "windows.vadinfo.VadInfo",
         "windows.netscan.NetScan",
         "windows.handles.Handles",
+        "windows.threads.Threads",
     ]
     assert observed["shell"] is False
     with pytest.raises(ValueError):
@@ -390,9 +419,11 @@ def test_volatility_plugin_failures_are_isolated(tmp_path: Path, monkeypatch) ->
     assert result.completed_plugins == (
         "windows.pslist.PsList",
         "windows.pstree.PsTree",
+        "windows.cmdline.CmdLine",
         "windows.vadinfo.VadInfo",
         "windows.netscan.NetScan",
         "windows.handles.Handles",
+        "windows.threads.Threads",
     )
     assert result.warnings == ("dlllist symbols unavailable",)
 
@@ -411,6 +442,7 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
             max_memory_regions=1,
             max_memory_network_records=1,
             max_memory_handles=1,
+            max_memory_threads=1,
         ),
     )
 
@@ -431,6 +463,11 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
                 {"PID": 1, "Type": "File", "HandleValue": "0x10"},
                 {"PID": 2, "Type": "Key", "HandleValue": "0x20"},
             ]
+        if plugin == "windows.threads.Threads":
+            return [
+                {"PID": 1, "TID": 10, "Offset": "0x1000"},
+                {"PID": 2, "TID": 20, "Offset": "0x2000"},
+            ]
         return []
 
     monkeypatch.setattr(VolatilityAdapter, "_run", fake_run)
@@ -439,6 +476,7 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
     assert [process.pid for process in result.processes] == [1]
     assert len(result.network) == 1
     assert len(result.handles) == 1
+    assert len(result.threads) == 1
     assert "returned 2 records" in result.warnings[0]
     assert "configured maximum of 1" in result.warnings[0]
     assert any(
@@ -447,6 +485,10 @@ def test_volatility_normalized_records_are_bounded(tmp_path: Path, monkeypatch) 
     )
     assert any(
         "windows.handles.Handles returned 2 records" in warning
+        for warning in result.warnings
+    )
+    assert any(
+        "windows.threads.Threads returned 2 records" in warning
         for warning in result.warnings
     )
 
@@ -468,6 +510,68 @@ def test_volatility_rejects_unsupported_json_structure(
     assert result.warnings == (
         "Volatility plugin windows.dlllist.DllList returned an unsupported JSON structure.",
     )
+
+
+def test_memory_thread_routes_read_persisted_artifact_directly(tmp_path: Path) -> None:
+    from reversing_lab.api.routes.memory import (
+        memory_analysis_summary,
+        memory_threads,
+    )
+
+    artifact = tmp_path / "analysis.json.gz"
+    artifact.write_bytes(
+        gzip.compress(
+            json.dumps(
+                {
+                    "metadata": {
+                        "sha256": "a" * 64,
+                        "size": 256,
+                        "dump_format": "windows-memory-dump",
+                        "os_guess": "Windows",
+                        "architecture": "x86_64",
+                        "confidence": 0.9,
+                    },
+                    "provider": "volatility3",
+                    "threads": [
+                        {
+                            "pid": 44,
+                            "tid": 88,
+                            "process_name": "fixture.exe",
+                            "object_offset": 0xFFFF800000004000,
+                            "start_address": 0xFFFFF80000100000,
+                            "start_path": "ntoskrnl.exe",
+                            "win32_start_address": 0x140001000,
+                            "win32_start_path": "fixture.exe",
+                            "create_time": "2026-08-12 09:00:00",
+                            "exit_time": None,
+                            "source_provider": "volatility3",
+                        }
+                    ],
+                }
+            ).encode()
+        )
+    )
+
+    class Repository:
+        def get(self, dump_id):
+            assert dump_id == "dump-1"
+            return SimpleNamespace(analysis_path=str(artifact))
+
+    repository = Repository()
+    page = memory_threads(
+        "dump-1",
+        offset=0,
+        limit=20,
+        pid=44,
+        tid=88,
+        keyword="0x140001000",
+        repository=repository,
+    )
+    item = page.items[0].model_dump()
+    assert page.total == 1
+    assert item["object_offset_hex"] == "0xffff800000004000"
+    assert item["win32_start_address_hex"] == "0x140001000"
+    assert memory_analysis_summary("dump-1", repository).thread_count == 1
 
 
 def test_memory_analyzer_emits_evidenced_region_finding(
@@ -495,8 +599,27 @@ def test_memory_analyzer_emits_evidenced_region_finding(
                 tag="VadS",
             ),
         ),
-        completed_plugins=("windows.vadinfo.VadInfo",),
+        completed_plugins=(
+            "windows.cmdline.CmdLine",
+            "windows.vadinfo.VadInfo",
+            "windows.threads.Threads",
+        ),
         warnings=(),
+        threads=(
+            MemoryThread(
+                pid=77,
+                tid=88,
+                process_name="jit-fixture.exe",
+                object_offset=0xFFFF800000004000,
+                start_address=0xFFFFF80000100000,
+                start_path="ntoskrnl.exe",
+                win32_start_address=0x700100,
+                win32_start_path=None,
+                create_time="2026-08-12 09:00:00",
+                exit_time=None,
+                source_provider="volatility3",
+            ),
+        ),
     )
     monkeypatch.setattr(VolatilityAdapter, "is_available", lambda self: True)
     monkeypatch.setattr(
@@ -508,7 +631,11 @@ def test_memory_analyzer_emits_evidenced_region_finding(
     assert result.findings[0].title == "Writable and executable memory region"
     assert result.findings[0].severity == "high"
     assert "PID 77" in result.findings[0].evidence[0]
+    assert result.findings[1].title == "Thread starts in a suspicious memory region"
+    assert "TID 88" in result.findings[1].evidence[0]
     assert "memory protection map" not in result.unavailable
+    assert "thread details" not in result.unavailable
+    assert "command lines" not in result.unavailable
     assert "loaded modules" in result.unavailable
 
 
@@ -586,7 +713,9 @@ def test_memory_analyzer_emits_conservative_network_findings(
     assert result.handles[0].object_type == "File"
 
 
-def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) -> None:
+def test_memory_process_thread_module_region_handle_and_network_api(
+    api_client, monkeypatch
+) -> None:
     from reversing_lab.api.routes import memory
 
     result = MemoryAnalysisResult(
@@ -603,7 +732,7 @@ def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) ->
                 pid=44,
                 ppid=4,
                 name="fixture.exe",
-                command_line=None,
+                command_line=r"C:\fixture.exe --authorized-test",
                 thread_count=2,
                 module_count=1,
                 source_provider="volatility3",
@@ -673,6 +802,21 @@ def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) ->
                 source_provider="volatility3",
             ),
         ),
+        threads=(
+            MemoryThread(
+                pid=44,
+                tid=88,
+                process_name="fixture.exe",
+                object_offset=0xFFFF800000004000,
+                start_address=0xFFFFF80000100000,
+                start_path="ntoskrnl.exe",
+                win32_start_address=0x140001000,
+                win32_start_path="fixture.exe",
+                create_time="2026-08-12 09:00:00",
+                exit_time=None,
+                source_provider="volatility3",
+            ),
+        ),
     )
     monkeypatch.setattr(memory, "analyze_memory", lambda *args, **kwargs: result)
     upload = api_client.post(
@@ -693,6 +837,10 @@ def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) ->
         f"/api/memory-dumps/{dump_id}/handles",
         params={"pid": 44, "object_type": "file", "keyword": "0x12019f"},
     ).json()
+    threads = api_client.get(
+        f"/api/memory-dumps/{dump_id}/threads",
+        params={"pid": 44, "tid": 88, "keyword": "0x140001000"},
+    ).json()
     network = api_client.get(
         f"/api/memory-dumps/{dump_id}/network",
         params={
@@ -705,8 +853,10 @@ def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) ->
     assert summary["module_count"] == 1
     assert summary["network_count"] == 1
     assert summary["handle_count"] == 1
+    assert summary["thread_count"] == 1
     assert processes["items"][0]["tree_depth"] == 2
     assert processes["items"][0]["orphaned"] is False
+    assert processes["items"][0]["command_line"].endswith("--authorized-test")
     assert modules["total"] == 1
     assert modules["items"][0]["base_address"] == 0x140000000
     assert modules["items"][0]["base_address_hex"] == "0x140000000"
@@ -717,6 +867,10 @@ def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) ->
     assert handles["items"][0]["object_offset_hex"] == "0xffff800000003000"
     assert handles["items"][0]["handle_value_hex"] == "0x88"
     assert handles["items"][0]["granted_access_hex"] == "0x12019f"
+    assert threads["total"] == 1
+    assert threads["items"][0]["object_offset_hex"] == "0xffff800000004000"
+    assert threads["items"][0]["start_address_hex"] == "0xfffff80000100000"
+    assert threads["items"][0]["win32_start_address_hex"] == "0x140001000"
     assert network["total"] == 1
     assert network["items"][0]["offset_hex"] == "0xffff800000002000"
     assert (
@@ -728,6 +882,12 @@ def test_memory_module_region_handle_and_network_api(api_client, monkeypatch) ->
     assert (
         api_client.get(
             f"/api/memory-dumps/{dump_id}/handles", params={"keyword": "x" * 257}
+        ).status_code
+        == 422
+    )
+    assert (
+        api_client.get(
+            f"/api/memory-dumps/{dump_id}/threads", params={"keyword": "x" * 257}
         ).status_code
         == 422
     )

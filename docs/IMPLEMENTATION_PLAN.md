@@ -207,3 +207,10 @@ for object offsets, handle values, and access masks, provider provenance, and ex
 stale/incomplete-evidence caveats. Plugin failure remains isolated from sibling results.
 Focused verification passed eight backend Volatility/analyzer tests, direct persisted
 artifact and OpenAPI contract checks, all 20 frontend tests, and the production build.
+
+Process-context follow-up on 2026-08-12: fixed `windows.cmdline.CmdLine` output now
+enriches bounded process records, while `windows.threads.Threads` produces a separately
+bounded, filterable thread artifact with exact ETHREAD and start-address hex fields.
+Kernel/Win32 starts inside an already suspicious VAD create a conservative correlation
+finding with explicit JIT/stale-evidence caveats. Focused backend contracts, all 21
+frontend tests, and the production build passed.

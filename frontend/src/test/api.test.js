@@ -108,6 +108,23 @@ describe('API client', () => {
     );
   });
 
+  it('encodes memory thread filters as query parameters', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({
+      body: { items: [], total: 0, offset: 0, limit: 200 },
+    }));
+
+    await api.memoryThreads('dump-1', {
+      pid: 44,
+      tid: 88,
+      keyword: 'fixture.exe',
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/memory-dumps/dump-1/threads?pid=44&tid=88&keyword=fixture.exe',
+      {},
+    );
+  });
+
   it('uses a fixed acknowledged contract for memory region inspection', async () => {
     global.fetch = vi.fn().mockResolvedValue(response({
       body: { id: 'region-job-1', state: 'queued' },

@@ -43,6 +43,8 @@ from ..schemas import (
     MemoryRegionInstructionSchema,
     MemoryRegionPageSchema,
     MemoryRegionSchema,
+    MemoryThreadPageSchema,
+    MemoryThreadSchema,
 )
 from ..uploads import read_upload_limited, safe_display_filename
 
@@ -148,6 +150,7 @@ def memory_analysis_summary(
         region_count=len(payload.get("regions", [])),
         network_count=len(payload.get("network", [])),
         handle_count=len(payload.get("handles", [])),
+        thread_count=len(payload.get("threads", [])),
         string_count=len(payload.get("strings", [])),
         urls=payload.get("urls", []),
         ip_addresses=payload.get("ip_addresses", []),
@@ -248,6 +251,50 @@ def memory_handles(
     return MemoryHandlePageSchema(
         items=[
             MemoryHandleSchema.model_validate(item)
+            for item in items[offset : offset + limit]
+        ],
+        total=len(items),
+        offset=offset,
+        limit=limit,
+    )
+
+
+@router.get("/{dump_id}/threads", response_model=MemoryThreadPageSchema)
+def memory_threads(
+    dump_id: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=1_000),
+    pid: int | None = Query(default=None, ge=0, le=2**32 - 1),
+    tid: int | None = Query(default=None, ge=0, le=2**32 - 1),
+    keyword: str | None = Query(default=None, max_length=256),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> MemoryThreadPageSchema:
+    items = _result(repository.get(dump_id)).get("threads", [])
+    if pid is not None:
+        items = [item for item in items if item.get("pid") == pid]
+    if tid is not None:
+        items = [item for item in items if item.get("tid") == tid]
+    if keyword:
+        expected = keyword.casefold()
+
+        def search_text(item: dict[str, object]) -> str:
+            values = [
+                str(item.get("process_name", "")),
+                str(item.get("start_path", "")),
+                str(item.get("win32_start_path", "")),
+                str(item.get("create_time", "")),
+                str(item.get("exit_time", "")),
+            ]
+            for field in ("object_offset", "start_address", "win32_start_address"):
+                value = item.get(field)
+                if isinstance(value, int) and value >= 0:
+                    values.append(f"0x{value:x}")
+            return " ".join(values).casefold()
+
+        items = [item for item in items if expected in search_text(item)]
+    return MemoryThreadPageSchema(
+        items=[
+            MemoryThreadSchema.model_validate(item)
             for item in items[offset : offset + limit]
         ],
         total=len(items),

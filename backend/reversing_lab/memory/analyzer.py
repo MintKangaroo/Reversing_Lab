@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import re
+from bisect import bisect_right
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -17,6 +18,7 @@ from .models import (
     MemoryMetadata,
     MemoryNetworkArtifact,
     MemoryRegion,
+    MemoryThread,
 )
 from .volatility import VolatilityAdapter
 
@@ -201,6 +203,67 @@ def _network_findings(
     return findings, truncated
 
 
+def _thread_findings(
+    threads: tuple[MemoryThread, ...],
+    regions: tuple[MemoryRegion, ...],
+    limit: int,
+) -> tuple[list[MemoryFinding], bool]:
+    suspicious_by_pid: dict[int, list[MemoryRegion]] = {}
+    for region in regions:
+        if region.suspicious and region.pid is not None:
+            suspicious_by_pid.setdefault(region.pid, []).append(region)
+    starts_by_pid: dict[int, list[int]] = {}
+    for pid, candidates in suspicious_by_pid.items():
+        candidates.sort(key=lambda item: item.start)
+        starts_by_pid[pid] = [item.start for item in candidates]
+
+    findings: list[MemoryFinding] = []
+    for thread in threads:
+        candidates = suspicious_by_pid.get(thread.pid)
+        if not candidates:
+            continue
+        matched: tuple[int, str, MemoryRegion] | None = None
+        for address, label in (
+            (thread.win32_start_address, "Win32 start"),
+            (thread.start_address, "kernel start"),
+        ):
+            if address is None:
+                continue
+            index = bisect_right(starts_by_pid[thread.pid], address) - 1
+            if index >= 0 and address <= candidates[index].end:
+                matched = (address, label, candidates[index])
+                break
+        if matched is None:
+            continue
+        if len(findings) >= limit:
+            return findings, True
+        address, label, region = matched
+        process = thread.process_name or region.process_name or "unknown"
+        findings.append(
+            MemoryFinding(
+                id=f"memory-thread-{thread.pid}-{thread.tid}-{address:x}",
+                title="Thread starts in a suspicious memory region",
+                severity="medium",
+                confidence=0.78,
+                summary=(
+                    "Volatility reported a thread start address inside a region already "
+                    "flagged for executable private or writable memory."
+                ),
+                evidence=(
+                    f"PID {thread.pid} ({process}), TID {thread.tid}, {label} 0x{address:x}.",
+                    f"Region 0x{region.start:x}-0x{region.end:x}, protection {region.protection}.",
+                    f"Sources: {thread.source_provider} thread and {region.source_provider} VAD records.",
+                ),
+                false_positive_note=(
+                    "JIT runtimes, instrumentation, unpackers, stale thread records, and "
+                    "symbol gaps can produce this correlation. Inspect the region bytes and "
+                    "process context before treating it as injection evidence."
+                ),
+            )
+        )
+    return findings, False
+
+
 def analyze_memory(
     dump_path: Path,
     *,
@@ -263,6 +326,7 @@ def analyze_memory(
     regions = ()
     network = ()
     handles = ()
+    threads = ()
     provider = "basic"
     unavailable = [
         "process list",
@@ -289,6 +353,7 @@ def analyze_memory(
             regions = volatility_result.regions
             network = volatility_result.network
             handles = volatility_result.handles
+            threads = volatility_result.threads
             warnings.extend(volatility_result.warnings)
             provider = volatility.name
             completed = set(volatility_result.completed_plugins)
@@ -306,6 +371,10 @@ def analyze_memory(
                 unavailable.remove("network connections")
             if "windows.handles.Handles" in completed:
                 unavailable.remove("handles")
+            if "windows.cmdline.CmdLine" in completed:
+                unavailable.remove("command lines")
+            if "windows.threads.Threads" in completed:
+                unavailable.remove("thread details")
         else:
             warnings.append(
                 "Volatility 3 is unavailable; returned basic metadata, strings, and IOCs only."
@@ -315,11 +384,19 @@ def analyze_memory(
         regions, max(settings.max_memory_findings - len(findings), 0)
     )
     findings.extend(region_findings)
+    thread_findings, truncated_thread_findings = _thread_findings(
+        threads, regions, max(settings.max_memory_findings - len(findings), 0)
+    )
+    findings.extend(thread_findings)
     network_findings, truncated_network_findings = _network_findings(
         network, max(settings.max_memory_findings - len(findings), 0)
     )
     findings.extend(network_findings)
-    if truncated_findings or truncated_network_findings:
+    if (
+        truncated_findings
+        or truncated_thread_findings
+        or truncated_network_findings
+    ):
         warnings.append(
             "Memory findings exceeded the configured limit; "
             f"retained {settings.max_memory_findings}."
@@ -342,4 +419,5 @@ def analyze_memory(
         modules=modules,
         network=network,
         handles=handles,
+        threads=threads,
     )

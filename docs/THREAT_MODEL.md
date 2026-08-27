@@ -38,6 +38,8 @@ are operator-controlled but still validated before sensitive use.
 | VAD extraction path/size abuse | exact stored PID/range match, fixed argv, private output dir, basename/symlink/size checks | a compromised Volatility executable can still return misleading bytes within the cap |
 | extracted bytes mistaken for executed code | UI caveat, provider/hash provenance, architecture-labelled data-only Capstone decode | analyst must correlate with threads, traces, and other evidence |
 | RWX heuristic false positive | evidence, confidence, process/range context, explicit caveat | analyst correlation with bytes and behavior remains required |
+| command-line secret disclosure | owner-scoped result artifact, body-free audit trail, retention workflow | authorized viewers can still see sensitive captured arguments |
+| thread/VAD correlation misclassified as injection | requires matching PID/address and an already suspicious VAD; medium severity with caveat | JIT, stale records, and symbol gaps require manual validation |
 | network observation misclassified as malicious | public endpoints are informational; only unattributed wildcard listeners receive low severity | provider output and historical sockets still require timeline/context validation |
 | decompression bomb | archive uploads unsupported | future archive support needs a dedicated extractor |
 | unsafe sample execution | API has no execution path, disabled provider | custom provider security is operator responsibility |

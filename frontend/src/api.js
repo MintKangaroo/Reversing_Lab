@@ -61,6 +61,8 @@ export const api = {
   packing: (sha) => request(`/binaries/${sha}/packing`),
   obfuscation: (sha) => request(`/binaries/${sha}/obfuscation`),
   findings: (sha) => request(`/binaries/${sha}/findings`),
+  malwareTriage: (sha, useGhidra = false) =>
+    request(`/binaries/${sha}/malware?use_ghidra=${useGhidra}`),
   unpack: (sha) =>
     request(`/binaries/${sha}/unpack`, {
       method: 'POST',
@@ -161,6 +163,10 @@ export const api = {
   memoryHandles: (id, params = {}) => {
     const query = new URLSearchParams(params);
     return request(`/memory-dumps/${id}/handles${query.size ? `?${query}` : ''}`);
+  },
+  memoryThreads: (id, params = {}) => {
+    const query = new URLSearchParams(params);
+    return request(`/memory-dumps/${id}/threads${query.size ? `?${query}` : ''}`);
   },
   memoryRegions: (id) => request(`/memory-dumps/${id}/regions`),
   inspectMemoryRegion: (id, region, architecture = 'x86_64') =>

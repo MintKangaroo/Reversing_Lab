@@ -103,6 +103,12 @@ class Settings(BaseSettings):
         le=1_000_000,
         description="Hard cap on normalized handle records retained per dump.",
     )
+    max_memory_threads: int = Field(
+        default=200_000,
+        ge=1,
+        le=2_000_000,
+        description="Hard cap on normalized thread records retained per dump.",
+    )
     max_memory_region_extract_bytes: int = Field(
         default=1024 * 1024,
         ge=4096,

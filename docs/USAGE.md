@@ -64,6 +64,10 @@ curl -s $BASE/binaries/$SHA/cfg | jq '{blocks:(.blocks|length), edges:(.edges|le
 ADDRESS=$(curl -s "$BASE/binaries/$SHA/functions?limit=1" | jq -r '.items[0].address')
 curl -s "$BASE/binaries/$SHA/functions/$ADDRESS/decompile?provider=pseudo_c" | jq '.code'
 
+# Malware triage (static capabilities + IOCs; add use_ghidra=true for headless confirmation)
+curl -s "$BASE/binaries/$SHA/malware" | jq '{verdict, risk_score, caps:(.capabilities|length), iocs:(.indicators|length)}'
+curl -s "$BASE/binaries/$SHA/malware?use_ghidra=true" | jq '.ghidra'
+
 # Evidence-linked Markdown report
 curl -OJ "$BASE/binaries/$SHA/report?format=markdown"
 

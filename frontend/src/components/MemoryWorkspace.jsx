@@ -22,6 +22,10 @@ export function MemoryWorkspace() {
   const [handleTotal, setHandleTotal] = useState(0);
   const [handleFilters, setHandleFilters] = useState({ pid: '', object_type: '', keyword: '' });
   const [handleBusy, setHandleBusy] = useState(false);
+  const [threads, setThreads] = useState([]);
+  const [threadTotal, setThreadTotal] = useState(0);
+  const [threadFilters, setThreadFilters] = useState({ pid: '', tid: '', keyword: '' });
+  const [threadBusy, setThreadBusy] = useState(false);
   const [regions, setRegions] = useState([]);
   const [network, setNetwork] = useState([]);
   const [networkTotal, setNetworkTotal] = useState(0);
@@ -45,11 +49,12 @@ export function MemoryWorkspace() {
         const next = await api.job(job.id);
         setJob(next);
         if (next.state === 'completed') {
-          const [overview, processPage, modulePage, handlePage, regionPage, networkPage, resultFindings] = await Promise.all([
+          const [overview, processPage, modulePage, handlePage, threadPage, regionPage, networkPage, resultFindings] = await Promise.all([
             api.memorySummary(dump.id),
             api.memoryProcesses(dump.id),
             api.memoryModules(dump.id),
             api.memoryHandles(dump.id),
+            api.memoryThreads(dump.id),
             api.memoryRegions(dump.id),
             api.memoryNetwork(dump.id),
             api.memoryFindings(dump.id),
@@ -59,6 +64,8 @@ export function MemoryWorkspace() {
           setModules(modulePage.items);
           setHandles(handlePage.items);
           setHandleTotal(handlePage.total);
+          setThreads(threadPage.items);
+          setThreadTotal(threadPage.total);
           setRegions(regionPage.items);
           setNetwork(networkPage.items);
           setNetworkTotal(networkPage.total);
@@ -80,6 +87,9 @@ export function MemoryWorkspace() {
     setHandles([]);
     setHandleTotal(0);
     setHandleFilters({ pid: '', object_type: '', keyword: '' });
+    setThreads([]);
+    setThreadTotal(0);
+    setThreadFilters({ pid: '', tid: '', keyword: '' });
     setRegions([]);
     setNetwork([]);
     setNetworkTotal(0);
@@ -148,6 +158,24 @@ export function MemoryWorkspace() {
     }
   }
 
+  async function applyThreadFilters(event) {
+    event.preventDefault();
+    setThreadBusy(true);
+    setError(null);
+    try {
+      const params = Object.fromEntries(
+        Object.entries(threadFilters).filter(([, value]) => value !== ''),
+      );
+      const page = await api.memoryThreads(dump.id, params);
+      setThreads(page.items);
+      setThreadTotal(page.total);
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setThreadBusy(false);
+    }
+  }
+
   return (
     <div className="page-scroll memory-workspace">
       <input ref={inputRef} type="file" hidden onChange={(event) => event.target.files?.[0] && upload(event.target.files[0])} />
@@ -193,12 +221,12 @@ export function MemoryWorkspace() {
           {summary && (
             <div className="memory-results">
               <div className="result-tabs">
-                {['overview', 'processes', 'modules', 'handles', 'regions', 'network', 'findings'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item} {item === 'processes' ? `(${summary.process_count})` : item === 'modules' ? `(${summary.module_count})` : item === 'handles' ? `(${summary.handle_count})` : item === 'regions' ? `(${summary.region_count})` : item === 'network' ? `(${summary.network_count})` : item === 'findings' ? `(${summary.finding_count})` : ''}</button>)}
+                {['overview', 'processes', 'threads', 'modules', 'handles', 'regions', 'network', 'findings'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item} {item === 'processes' ? `(${summary.process_count})` : item === 'threads' ? `(${summary.thread_count})` : item === 'modules' ? `(${summary.module_count})` : item === 'handles' ? `(${summary.handle_count})` : item === 'regions' ? `(${summary.region_count})` : item === 'network' ? `(${summary.network_count})` : item === 'findings' ? `(${summary.finding_count})` : ''}</button>)}
               </div>
               {tab === 'overview' && (
                 <div className="memory-overview">
                   <div className="metric-grid">
-                    <div className="metric-card"><span>Provider</span><strong>{summary.provider}</strong><small>{summary.process_count} processes · {summary.module_count} modules · {summary.handle_count} handles · {summary.region_count} regions · {summary.network_count} sockets</small></div>
+                    <div className="metric-card"><span>Provider</span><strong>{summary.provider}</strong><small>{summary.process_count} processes · {summary.thread_count} threads · {summary.module_count} modules · {summary.handle_count} handles · {summary.region_count} regions · {summary.network_count} sockets</small></div>
                     <div className="metric-card tone-violet"><span>Strings</span><strong>{summary.string_count}</strong><small>Bounded extraction</small></div>
                     <div className="metric-card tone-green"><span>IOCs</span><strong>{summary.urls.length + summary.ip_addresses.length + summary.domains.length}</strong><small>URLs · IPs · domains</small></div>
                     <div className="metric-card tone-red"><span>Findings</span><strong>{summary.finding_count}</strong><small>Review required</small></div>
@@ -208,7 +236,8 @@ export function MemoryWorkspace() {
                   <div className="unavailable-list"><h3>Unavailable from this provider</h3>{summary.unavailable.map((item) => <span key={item}>{item}</span>)}</div>
                 </div>
               )}
-              {tab === 'processes' && (processes.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID</th><th>PPID</th><th>Process tree</th><th>Threads</th><th>Modules</th><th>Provider</th></tr></thead><tbody>{processes.map((item) => <tr key={item.pid}><td className="mono">{item.pid}</td><td className="mono">{item.ppid ?? '—'}</td><td><span className="process-tree-name" style={{ paddingLeft: `${Math.min(item.tree_depth ?? 0, 12) * 14}px` }}>{item.tree_depth > 0 ? '↳ ' : ''}{item.name}</span>{item.orphaned && <span className="memory-orphan">orphan</span>}</td><td>{item.thread_count ?? 'unavailable'}</td><td>{item.module_count ?? 'unavailable'}</td><td>{item.source_provider}</td></tr>)}</tbody></table></div> : <Empty label="Process list unavailable" />)}
+              {tab === 'processes' && (processes.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID</th><th>PPID</th><th>Process tree</th><th>Command line</th><th>Threads</th><th>Modules</th><th>Provider</th></tr></thead><tbody>{processes.map((item) => <tr key={item.pid}><td className="mono">{item.pid}</td><td className="mono">{item.ppid ?? '—'}</td><td><span className="process-tree-name" style={{ paddingLeft: `${Math.min(item.tree_depth ?? 0, 12) * 14}px` }}>{item.tree_depth > 0 ? '↳ ' : ''}{item.name}</span>{item.orphaned && <span className="memory-orphan">orphan</span>}</td><td className="mono">{item.command_line || 'unavailable'}</td><td>{item.thread_count ?? 'unavailable'}</td><td>{item.module_count ?? 'unavailable'}</td><td>{item.source_provider}</td></tr>)}</tbody></table></div> : <Empty label="Process list unavailable" />)}
+              {tab === 'threads' && <div className="memory-threads-view"><form className="memory-filter-bar" onSubmit={applyThreadFilters}><label>PID<input aria-label="Filter threads by PID" type="number" min="0" value={threadFilters.pid} onChange={(event) => setThreadFilters({ ...threadFilters, pid: event.target.value })} /></label><label>TID<input aria-label="Filter threads by TID" type="number" min="0" value={threadFilters.tid} onChange={(event) => setThreadFilters({ ...threadFilters, tid: event.target.value })} /></label><label>Keyword<input aria-label="Filter threads by keyword" placeholder="path, timestamp, hex address" value={threadFilters.keyword} onChange={(event) => setThreadFilters({ ...threadFilters, keyword: event.target.value })} /></label><button className="btn secondary" disabled={threadBusy}>{threadBusy ? 'Filtering…' : 'Apply filters'}</button><span>{threadTotal.toLocaleString()} matching records</span></form>{threads.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID / TID</th><th>Process</th><th>ETHREAD</th><th>Kernel start</th><th>Win32 start</th><th>Lifetime</th><th>Provider</th></tr></thead><tbody>{threads.map((item, index) => <tr key={item.object_offset_hex || `${item.pid}-${item.tid}-${index}`}><td className="mono">{item.pid} / {item.tid}</td><td>{item.process_name || 'unknown'}</td><td className="mono">{item.object_offset_hex || '—'}</td><td><span className="mono">{item.start_address_hex || '—'}</span><small className="mono">{item.start_path || 'unresolved'}</small></td><td><span className="mono">{item.win32_start_address_hex || '—'}</span><small className="mono">{item.win32_start_path || 'unresolved'}</small></td><td><span>{item.create_time || 'unknown'}</span><small>{item.exit_time ? `Exited ${item.exit_time}` : 'No exit time observed'}</small></td><td>{item.source_provider}</td></tr>)}</tbody></table></div> : <Empty label="No thread records match this filter" />}</div>}
               {tab === 'modules' && (modules.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID</th><th>Base</th><th>Size</th><th>Name</th><th>Path</th><th>Provider</th></tr></thead><tbody>{modules.map((item) => <tr key={`${item.pid}-${item.base_address_hex || item.base_address}`}><td className="mono">{item.pid}</td><td className="mono">{item.base_address_hex || hex(item.base_address)}</td><td>{item.size.toLocaleString()} B</td><td>{item.name}</td><td className="mono">{item.path || '—'}</td><td>{item.source_provider}</td></tr>)}</tbody></table></div> : <Empty label="Loaded modules unavailable" />)}
               {tab === 'handles' && <div className="memory-handles-view"><form className="memory-filter-bar" onSubmit={applyHandleFilters}><label>PID<input aria-label="Filter handles by PID" type="number" min="0" value={handleFilters.pid} onChange={(event) => setHandleFilters({ ...handleFilters, pid: event.target.value })} /></label><label>Object type<input aria-label="Filter handles by object type" placeholder="File" value={handleFilters.object_type} onChange={(event) => setHandleFilters({ ...handleFilters, object_type: event.target.value })} /></label><label>Keyword<input aria-label="Filter handles by keyword" placeholder="name, process, hex value" value={handleFilters.keyword} onChange={(event) => setHandleFilters({ ...handleFilters, keyword: event.target.value })} /></label><button className="btn secondary" disabled={handleBusy}>{handleBusy ? 'Filtering…' : 'Apply filters'}</button><span>{handleTotal.toLocaleString()} matching records</span></form>{handles.length ? <div className="memory-table-scroll"><table className="data"><thead><tr><th>PID / Process</th><th>Type</th><th>Handle</th><th>Object offset</th><th>Access</th><th>Name</th><th>Provider</th></tr></thead><tbody>{handles.map((item, index) => <tr key={item.object_offset_hex || `${item.pid}-${item.handle_value_hex}-${index}`}><td><span className="mono">{item.pid}</span> · {item.process_name || 'unknown'}</td><td>{item.object_type}</td><td className="mono">{item.handle_value_hex || '—'}</td><td className="mono">{item.object_offset_hex || '—'}</td><td className="mono">{item.granted_access_hex || '—'}</td><td className="mono">{item.name || 'unnamed'}</td><td>{item.source_provider}</td></tr>)}</tbody></table></div> : <Empty label="No handle records match this filter" />}</div>}
               {tab === 'regions' && <MemoryRegionInspector dump={dump} regions={regions} volatility={volatility} />}

@@ -13,6 +13,7 @@ import { FunctionsTab } from './components/FunctionsTab.jsx';
 import { CallGraphTab } from './components/CallGraphTab.jsx';
 import { PseudoCodeTab } from './components/PseudoCodeTab.jsx';
 import { FindingsTab } from './components/FindingsTab.jsx';
+import { MalwareTab } from './components/MalwareTab.jsx';
 import { ProgramFlowTab } from './components/ProgramFlowTab.jsx';
 import { MemoryWorkspace } from './components/MemoryWorkspace.jsx';
 import { DynamicWorkspace } from './components/DynamicWorkspace.jsx';
@@ -48,6 +49,7 @@ const ANALYSIS_TABS = [
   { id: 'exports', label: 'Exports' },
   { id: 'packing', label: 'Packing' },
   { id: 'obfuscation', label: 'Obfuscation' },
+  { id: 'malware', label: 'Malware Triage' },
   { id: 'integrations', label: 'Tooling' },
 ];
 
@@ -403,6 +405,7 @@ function AnalysisView({ sha, info, error, functionAddress, onFunctionSelect }) {
         {tab === 'flow' && <ProgramFlowTab sha={sha} onAddressSelect={onFunctionSelect} />}
         {tab === 'packing' && <PackingTab sha={sha} />}
         {tab === 'obfuscation' && <FindingsTab sha={sha} onAddressSelect={onFunctionSelect} />}
+        {tab === 'malware' && <MalwareTab sha={sha} onAddressSelect={onFunctionSelect} />}
         {tab === 'integrations' && <IntegrationsTab sha={sha} />}
         {ANALYSIS_TABS.find((item) => item.id === tab)?.pending && (
           <PendingAnalysis title={ANALYSIS_TABS.find((item) => item.id === tab).label} />

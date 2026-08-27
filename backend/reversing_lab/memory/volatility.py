@@ -18,16 +18,19 @@ from .models import (
     MemoryNetworkArtifact,
     MemoryProcess,
     MemoryRegion,
+    MemoryThread,
 )
 
 ALLOWED_PLUGINS: tuple[str, ...] = (
     "windows.info.Info",
     "windows.pslist.PsList",
     "windows.pstree.PsTree",
+    "windows.cmdline.CmdLine",
     "windows.dlllist.DllList",
     "windows.vadinfo.VadInfo",
     "windows.netscan.NetScan",
     "windows.handles.Handles",
+    "windows.threads.Threads",
 )
 
 _UNAVAILABLE_TEXT = {
@@ -51,6 +54,15 @@ class VolatilityResult:
     warnings: tuple[str, ...]
     network: tuple[MemoryNetworkArtifact, ...] = ()
     handles: tuple[MemoryHandle, ...] = ()
+    threads: tuple[MemoryThread, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _ProcessCommandLine:
+    pid: int
+    process_name: str | None
+    command_line: str
+    source_provider: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +112,11 @@ def _integer(value: object | None) -> int | None:
         )
     except ValueError:
         return None
+
+
+def _nonnegative_integer(row: dict[str, object], *names: str) -> int | None:
+    value = _integer(_value(row, *names))
+    return value if value is None or value >= 0 else None
 
 
 def _boolean(value: object | None) -> bool | None:
@@ -226,6 +243,27 @@ def _normalize_process_tree(payload: object, provider: str) -> list[MemoryProces
                 module_count=None,
                 source_provider=provider,
                 tree_depth=depth,
+            )
+        )
+    return normalized
+
+
+def _normalize_command_lines(
+    payload: object, provider: str
+) -> list[_ProcessCommandLine]:
+    normalized: list[_ProcessCommandLine] = []
+    for row in _rows(payload):
+        pid = _integer(_value(row, "PID", "Pid"))
+        command_line = _text(_value(row, "Args", "CommandLine", "Command Line"))
+        if pid is None or pid < 0 or command_line is None:
+            continue
+        process_name = _text(_value(row, "Process", "ImageFileName", "Name"))
+        normalized.append(
+            _ProcessCommandLine(
+                pid=pid,
+                process_name=process_name[:512] if process_name else None,
+                command_line=command_line[:8192],
+                source_provider=provider,
             )
         )
     return normalized
@@ -375,8 +413,54 @@ def _normalize_handles(payload: object, provider: str) -> list[MemoryHandle]:
     return normalized
 
 
+def _normalize_threads(payload: object, provider: str) -> list[MemoryThread]:
+    normalized: list[MemoryThread] = []
+    for row in _rows(payload):
+        pid = _integer(_value(row, "PID", "Pid"))
+        tid = _integer(_value(row, "TID", "Tid", "ThreadId", "Thread ID"))
+        if pid is None or pid < 0 or tid is None or tid < 0:
+            continue
+
+        process_name = _text(_value(row, "Process", "ImageFileName"))
+        start_path = _text(_value(row, "StartPath", "Start Path"))
+        win32_start_path = _text(
+            _value(row, "Win32StartPath", "Win32 Start Path")
+        )
+        create_time = _text(_value(row, "CreateTime", "Create Time"))
+        exit_time = _text(_value(row, "ExitTime", "Exit Time"))
+        normalized.append(
+            MemoryThread(
+                pid=pid,
+                tid=tid,
+                process_name=process_name[:512] if process_name else None,
+                object_offset=_nonnegative_integer(
+                    row,
+                    "Offset", "ETHREAD", "Object", "ObjectOffset"
+                ),
+                start_address=_nonnegative_integer(
+                    row, "StartAddress", "Start Address"
+                ),
+                start_path=start_path[:4096] if start_path else None,
+                win32_start_address=_nonnegative_integer(
+                    row,
+                    "Win32StartAddress", "Win32 Start Address"
+                ),
+                win32_start_path=(
+                    win32_start_path[:4096] if win32_start_path else None
+                ),
+                create_time=create_time[:256] if create_time else None,
+                exit_time=exit_time[:256] if exit_time else None,
+                source_provider=provider,
+            )
+        )
+    return normalized
+
+
 def _merge_processes(
-    listed: list[MemoryProcess], tree: list[MemoryProcess], tree_available: bool
+    listed: list[MemoryProcess],
+    tree: list[MemoryProcess],
+    command_lines: list[_ProcessCommandLine],
+    tree_available: bool,
 ) -> list[MemoryProcess]:
     by_pid = {process.pid: process for process in listed}
     for tree_process in tree:
@@ -396,6 +480,28 @@ def _merge_processes(
             ),
             command_line=tree_process.command_line or listed_process.command_line,
             tree_depth=tree_process.tree_depth,
+        )
+    for command in command_lines:
+        process = by_pid.get(command.pid)
+        if process is None:
+            by_pid[command.pid] = MemoryProcess(
+                pid=command.pid,
+                ppid=None,
+                name=command.process_name or "unknown",
+                command_line=command.command_line,
+                thread_count=None,
+                module_count=None,
+                source_provider=command.source_provider,
+            )
+            continue
+        by_pid[command.pid] = replace(
+            process,
+            name=(
+                command.process_name
+                if process.name == "unknown" and command.process_name
+                else process.name
+            ),
+            command_line=command.command_line,
         )
     processes = list(by_pid.values())
     if tree_available:
@@ -619,10 +725,12 @@ class VolatilityAdapter:
         settings = get_settings()
         processes: list[MemoryProcess] = []
         tree_processes: list[MemoryProcess] = []
+        command_lines: list[_ProcessCommandLine] = []
         modules: list[MemoryModule] = []
         regions: list[MemoryRegion] = []
         network: list[MemoryNetworkArtifact] = []
         handles: list[MemoryHandle] = []
+        threads: list[MemoryThread] = []
         completed_plugins: list[str] = []
         warnings: list[str] = []
         specifications = (
@@ -636,6 +744,12 @@ class VolatilityAdapter:
                 "windows.pstree.PsTree",
                 _normalize_process_tree,
                 tree_processes,
+                settings.max_memory_processes,
+            ),
+            (
+                "windows.cmdline.CmdLine",
+                _normalize_command_lines,
+                command_lines,
                 settings.max_memory_processes,
             ),
             (
@@ -662,6 +776,12 @@ class VolatilityAdapter:
                 handles,
                 settings.max_memory_handles,
             ),
+            (
+                "windows.threads.Threads",
+                _normalize_threads,
+                threads,
+                settings.max_memory_threads,
+            ),
         )
         for plugin, normalizer, destination, limit in specifications:
             try:
@@ -686,6 +806,7 @@ class VolatilityAdapter:
         processes = _merge_processes(
             processes,
             tree_processes,
+            command_lines,
             "windows.pstree.PsTree" in completed_plugins,
         )
         if len(processes) > settings.max_memory_processes:
@@ -715,6 +836,21 @@ class VolatilityAdapter:
                 item.object_offset if item.object_offset is not None else -1,
             )
         )
+        process_names = {process.pid: process.name for process in processes}
+        threads = [
+            replace(
+                thread,
+                process_name=thread.process_name or process_names.get(thread.pid),
+            )
+            for thread in threads
+        ]
+        threads.sort(
+            key=lambda item: (
+                item.pid,
+                item.tid,
+                item.object_offset if item.object_offset is not None else -1,
+            )
+        )
         processes.sort(key=lambda item: item.pid)
         if "windows.dlllist.DllList" in completed_plugins:
             counts: dict[int, int] = {}
@@ -733,4 +869,5 @@ class VolatilityAdapter:
             warnings=tuple(warnings),
             network=tuple(network),
             handles=tuple(handles),
+            threads=tuple(threads),
         )
