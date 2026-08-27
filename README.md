@@ -64,6 +64,10 @@ docker compose up --build
 |---|---|
 | ![Program Flow](docs/screenshots/08-program-flow.png) | ![Obfuscation](docs/screenshots/10-obfuscation.png) |
 
+| 악성코드 트리아지 | Ghidra 미설치 시 graceful degrade |
+|---|---|
+| ![Malware Triage](docs/screenshots/17-malware-triage.png) | ![Ghidra fallback](docs/screenshots/18-malware-ghidra.png) |
+
 | 메모리 Region Inspector | 격리 실행 안전 게이트 |
 |---|---|
 | ![Memory analysis](docs/screenshots/11-memory-analysis.png) | ![Dynamic guardrails](docs/screenshots/12-dynamic-safety.png) |
