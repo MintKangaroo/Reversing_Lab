@@ -1,5 +1,16 @@
 import { render, screen } from '@testing-library/react';
-import { DataTable, Empty, ErrorBanner, Loading } from '../components/common.jsx';
+import { BoolBadge, DataTable, Empty, ErrorBanner, Loading } from '../components/common.jsx';
+
+describe('BoolBadge tri-state', () => {
+  it('renders on/off for booleans and neutral n/a for null', () => {
+    const { rerender } = render(<BoolBadge value={true} on="enabled" off="disabled" />);
+    expect(screen.getByText('enabled')).toHaveClass('badge', 'on');
+    rerender(<BoolBadge value={false} on="enabled" off="disabled" />);
+    expect(screen.getByText('disabled')).toHaveClass('badge', 'off');
+    rerender(<BoolBadge value={null} on="enabled" off="disabled" na="n/a" />);
+    expect(screen.getByText('n/a')).toHaveClass('badge', 'neutral');
+  });
+});
 
 describe('shared states and bounded tables', () => {
   it('renders accessible loading, error, and empty states', () => {

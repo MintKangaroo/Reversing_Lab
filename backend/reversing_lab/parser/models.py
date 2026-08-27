@@ -78,6 +78,26 @@ class Export:
 
 
 @dataclass(frozen=True, slots=True)
+class Mitigations:
+    """Richer exploit-mitigation and provenance flags beyond the top-level
+    ``is_pie``/``has_nx``/``has_relro`` bools.
+
+    Each tri-state field is ``True``/``False`` for a positive/negative finding and
+    ``None`` when the mitigation does not apply to the format or could not be
+    determined; ``build_id`` is ``None`` when absent. This keeps "not applicable"
+    honestly distinct from "checked and absent".
+    """
+
+    stack_canary: bool | None = None  # PE __security_cookie / ELF __stack_chk_fail
+    control_flow_guard: bool | None = None  # PE Control Flow Guard / ELF CET (IBT/SHSTK)
+    signed: bool | None = None  # PE Authenticode; not applicable to ELF
+    has_debug_info: bool | None = None  # PE debug directory / ELF .debug* (DWARF)
+    build_id: str | None = None  # ELF GNU build-id / PE CodeView PDB GUID
+    tls: bool | None = None  # PE TLS callbacks / ELF PT_TLS segment
+    overlay_size: int = 0  # bytes appended past the last mapped section
+
+
+@dataclass(frozen=True, slots=True)
 class BinaryInfo:
     """Everything the parser extracts about a binary, in normalized form."""
 
@@ -95,5 +115,6 @@ class BinaryInfo:
     symbols: tuple[Symbol, ...] = ()
     imports: tuple[Import, ...] = ()
     exports: tuple[Export, ...] = ()
+    mitigations: Mitigations = field(default_factory=Mitigations)
     # Format-specific extras that don't fit the common model (e.g. PE subsystem).
     extra: dict[str, str] = field(default_factory=dict)

@@ -110,6 +110,17 @@ class ExportSchema(BaseModel):
     ordinal: int | None = None
 
 
+class MitigationsSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    stack_canary: bool | None = None
+    control_flow_guard: bool | None = None
+    signed: bool | None = None
+    has_debug_info: bool | None = None
+    build_id: str | None = None
+    tls: bool | None = None
+    overlay_size: int = 0
+
+
 class BinaryInfoSchema(BaseModel):
     model_config = _FROM_ATTRS
     binary_format: str
@@ -126,6 +137,7 @@ class BinaryInfoSchema(BaseModel):
     symbols: list[SymbolSchema]
     imports: list[ImportSchema]
     exports: list[ExportSchema]
+    mitigations: MitigationsSchema
     extra: dict[str, str]
 
 

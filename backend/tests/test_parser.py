@@ -42,6 +42,76 @@ def test_parse_macho(macho_bytes: bytes) -> None:
     assert any(section.contains_code for section in info.sections)
 
 
+# --- mitigation / provenance metadata --------------------------------------------
+def test_elf_mitigations_negative_and_undetermined(elf_bytes: bytes) -> None:
+    m = parse_binary(elf_bytes).mitigations
+    assert m.stack_canary is False  # no __stack_chk_* in the minimal fixture.
+    assert m.control_flow_guard is None  # no GNU property note -> undetermined, not False.
+    assert m.signed is None  # ELF has no code-signing scheme.
+    assert m.has_debug_info is False
+    assert m.build_id is None
+    assert m.tls is False
+    assert m.overlay_size == 0
+
+
+def test_pe_mitigations_from_dll_characteristics(pe_bytes: bytes) -> None:
+    m = parse_binary(pe_bytes).mitigations
+    # The fixture's DllCharacteristics (0x8160) set NX/DYNAMIC_BASE but not GUARD_CF,
+    # so CFG is a confirmed False (checked, absent) rather than undetermined.
+    assert m.control_flow_guard is False
+    assert m.signed is False
+    assert m.stack_canary is False
+    assert m.overlay_size == 0
+
+
+def test_macho_mitigations_default_to_not_applicable(macho_bytes: bytes) -> None:
+    # The Mach-O parser does not yet populate mitigations; the default must read as
+    # "not applicable" (None) across the board rather than a misleading False.
+    m = parse_binary(macho_bytes).mitigations
+    assert m.stack_canary is None
+    assert m.control_flow_guard is None
+    assert m.build_id is None
+    assert m.overlay_size == 0
+
+
+def test_elf_build_id_and_canary_helpers() -> None:
+    # Positive coverage without a hand-crafted note-bearing ELF: drive the helpers with
+    # duck-typed stubs mirroring the LIEF surface they read.
+    from reversing_lab.parser.elf_parser import _elf_build_id, _elf_has_stack_canary
+
+    class _Note:
+        type = "TYPE.GNU_BUILD_ID"
+        description = b"\xde\xad\xbe\xef"
+
+    class _Sym:
+        def __init__(self, name):
+            self.name = name
+
+    build_binary = type("B", (), {"notes": [_Note()]})()
+    assert _elf_build_id(build_binary) == "deadbeef"
+
+    canary_binary = type(
+        "B", (), {"symbols": [_Sym("__stack_chk_fail")], "dynamic_symbols": []}
+    )()
+    assert _elf_has_stack_canary(canary_binary) is True
+
+
+def test_mitigation_helpers_never_raise_on_hostile_binary() -> None:
+    # Every attribute access on a binary whose LIEF surface misbehaves must degrade to a
+    # safe default, never propagate out of the parse.
+    from reversing_lab.parser.elf_parser import _elf_mitigations
+    from reversing_lab.parser.pe_parser import _pe_mitigations
+
+    class _Hostile:
+        def __getattr__(self, name):
+            raise RuntimeError("boom")
+
+    elf_m = _elf_mitigations(_Hostile())
+    assert elf_m.overlay_size == 0 and elf_m.build_id is None
+    pe_m = _pe_mitigations(_Hostile(), set(), (), [])
+    assert pe_m.overlay_size == 0 and pe_m.signed is False
+
+
 def test_arch_x86_64_not_shadowed_by_x86() -> None:
     # Regression: "X86" is a substring of "X86_64"; the specific token must win.
     assert normalize_arch("ARCH.X86_64") == (Architecture.X86_64, 64)

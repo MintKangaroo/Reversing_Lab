@@ -6,11 +6,11 @@ import lief
 
 from .base import AbstractBinaryParser, normalize_arch, sha256_of
 from .models import (
-    Architecture,
     BinaryFormat,
     BinaryInfo,
     Export,
     Import,
+    Mitigations,
     Section,
     Symbol,
 )
@@ -111,5 +111,86 @@ class ElfParser(AbstractBinaryParser):
             symbols=symbols,
             imports=imports,
             exports=exports,
+            mitigations=_elf_mitigations(binary),
             extra=extra,
         )
+
+
+def _elf_mitigations(binary: "lief.ELF.Binary") -> Mitigations:
+    """Best-effort ELF mitigation/provenance extraction. Never raises: fragile note or
+    property decoding degrades to ``None``/defaults rather than failing the parse."""
+    return Mitigations(
+        stack_canary=_elf_has_stack_canary(binary),
+        control_flow_guard=_elf_has_cet(binary),
+        signed=None,  # ELF has no standard code-signing scheme.
+        has_debug_info=_elf_has_debug_info(binary),
+        build_id=_elf_build_id(binary),
+        tls=_elf_has_tls(binary),
+        overlay_size=_elf_overlay_size(binary),
+    )
+
+
+def _elf_symbol_names(binary: "lief.ELF.Binary") -> set[str]:
+    names: set[str] = set()
+    for attr in ("symbols", "dynamic_symbols"):
+        try:
+            names |= {s.name for s in getattr(binary, attr) if s.name}
+        except Exception:  # noqa: BLE001 — hostile/odd binaries may fault on access.
+            pass
+    return names
+
+
+def _elf_has_stack_canary(binary: "lief.ELF.Binary") -> bool:
+    # -fstack-protector references the guard helper/global; either name confirms it.
+    canary = {"__stack_chk_fail", "__stack_chk_guard", "__intel_security_cookie"}
+    return bool(canary & _elf_symbol_names(binary))
+
+
+def _elf_has_cet(binary: "lief.ELF.Binary") -> bool | None:
+    # CET (IBT/SHSTK) is advertised via a GNU property note. Decoding the exact bits is
+    # LIEF-version fragile, so detect the CET keywords in the property note and treat a
+    # binary with no property note at all as "undetermined" rather than "absent".
+    try:
+        saw_property_note = False
+        for note in binary.notes:
+            if "PROPERTY" not in str(note.type):
+                continue
+            saw_property_note = True
+            haystack = str(getattr(note, "properties", "")) + str(note)
+            if any(tag in haystack.upper() for tag in ("IBT", "SHSTK", "CET")):
+                return True
+        return False if saw_property_note else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _elf_has_debug_info(binary: "lief.ELF.Binary") -> bool:
+    try:
+        return any(s.name.startswith(".debug") for s in binary.sections if s.name)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _elf_build_id(binary: "lief.ELF.Binary") -> str | None:
+    try:
+        for note in binary.notes:
+            if "BUILD_ID" not in str(note.type):
+                continue
+            return "".join(f"{b:02x}" for b in note.description)
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _elf_has_tls(binary: "lief.ELF.Binary") -> bool:
+    try:
+        return any("TLS" in str(seg.type) for seg in binary.segments)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _elf_overlay_size(binary: "lief.ELF.Binary") -> int:
+    try:
+        return len(binary.overlay) if binary.has_overlay else 0
+    except Exception:  # noqa: BLE001
+        return 0

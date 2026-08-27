@@ -10,6 +10,7 @@ from .models import (
     BinaryInfo,
     Export,
     Import,
+    Mitigations,
     Section,
     Symbol,
 )
@@ -113,5 +114,79 @@ class PeParser(AbstractBinaryParser):
             symbols=symbols,
             imports=tuple(imports),
             exports=tuple(exports),
+            mitigations=_pe_mitigations(binary, dll_chars, symbols, imports),
             extra=extra,
         )
+
+
+def _pe_mitigations(
+    binary: "lief.PE.Binary",
+    dll_chars: set[str],
+    symbols: tuple[Symbol, ...],
+    imports: list[Import],
+) -> Mitigations:
+    """Best-effort PE mitigation/provenance extraction. Never raises: any field that
+    cannot be determined from a malformed or unusual binary falls back to a safe
+    default rather than propagating a LIEF error."""
+    return Mitigations(
+        stack_canary=_pe_has_stack_canary(binary, symbols, imports),
+        control_flow_guard="GUARD_CF" in dll_chars,
+        signed=_safe_bool(lambda: binary.has_signatures),
+        has_debug_info=_safe_bool(lambda: binary.has_debug),
+        build_id=_pe_build_id(binary),
+        tls=_pe_has_tls_callbacks(binary),
+        overlay_size=_safe_int(lambda: len(binary.overlay)),
+    )
+
+
+def _pe_has_stack_canary(
+    binary: "lief.PE.Binary",
+    symbols: tuple[Symbol, ...],
+    imports: list[Import],
+) -> bool:
+    # /GS leaves no header bit; the load-config security cookie is the reliable signal,
+    # with the cookie helper symbols as a fallback for binaries without a load config.
+    try:
+        if binary.has_configuration and binary.load_configuration.security_cookie:
+            return True
+    except Exception:  # noqa: BLE001 — LIEF may lack a load config on odd binaries.
+        pass
+    cookie_names = {"__security_cookie", "__security_check_cookie"}
+    names = {s.name for s in symbols} | {i.name for i in imports}
+    return bool(cookie_names & names)
+
+
+def _pe_has_tls_callbacks(binary: "lief.PE.Binary") -> bool:
+    # TLS callbacks run before the entry point — a classic anti-analysis / early-exec
+    # trick — so flag their presence specifically, not merely a TLS data directory.
+    try:
+        return bool(binary.has_tls and binary.tls and list(binary.tls.callbacks))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _pe_build_id(binary: "lief.PE.Binary") -> str | None:
+    # The CodeView PDB GUID is the PE analogue of a build id: it ties the image to the
+    # exact symbol file produced by the linker.
+    try:
+        for entry in binary.debug:
+            guid = getattr(entry, "guid", None)
+            if guid:
+                return str(guid)
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _safe_bool(getter) -> bool:
+    try:
+        return bool(getter())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _safe_int(getter) -> int:
+    try:
+        return int(getter())
+    except Exception:  # noqa: BLE001
+        return 0

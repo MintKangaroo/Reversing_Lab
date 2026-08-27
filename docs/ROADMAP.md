@@ -4,6 +4,9 @@
 
 - dark resizable analysis shell and hash routing;
 - normalized static parsing and function analysis;
+- richer PE/ELF mitigation & provenance metadata (stack canary, Control Flow Guard/CET,
+  Authenticode signing, debug info, build ID, TLS callbacks/PT_TLS, overlay), tri-state
+  where a mitigation is not applicable to the format;
 - synchronized disassembly/pseudo-C, CFG, call graph, flow summary;
 - evidence/provenance finding model, packing and obfuscation heuristics;
 - safe UPX and data-only decoder tools;
@@ -29,10 +32,10 @@
    and a managed provider that anchors exports in signed/WORM-backed storage with an
    archival policy.
 3. RetDec and r2ghidra adapters with the same process hardening contract.
-4. richer PE/ELF mitigation metadata: canary, CFG, signing, debug/build ID, TLS, overlay.
-5. paginated artifact download and explicit report association for memory/dynamic runs.
-6. function-list windowing (the common table already has windowed rendering).
-7. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
+4. paginated artifact download and explicit report association for memory/dynamic runs.
+5. function-list windowing (the common table already has windowed rendering).
+6. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
+7. Mach-O mitigation parity (code signature, LC_UUID build id, canary via symbols).
 
 ## Medium term
 

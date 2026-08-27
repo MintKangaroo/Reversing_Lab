@@ -2,7 +2,12 @@
 
 import { useState } from 'react';
 
-export function BoolBadge({ value, on = 'yes', off = 'no' }) {
+export function BoolBadge({ value, on = 'yes', off = 'no', na = 'n/a' }) {
+  // Tri-state: null/undefined means "not applicable or undetermined", rendered neutral
+  // so it reads differently from a confirmed-absent mitigation.
+  if (value === null || value === undefined) {
+    return <span className="badge neutral">{na}</span>;
+  }
   return <span className={`badge ${value ? 'on' : 'off'}`}>{value ? on : off}</span>;
 }
 
