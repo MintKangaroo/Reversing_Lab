@@ -8,6 +8,8 @@
   Guard/CET, code signing, debug info, build ID/UUID, TLS callbacks/PT_TLS, overlay),
   tri-state where a mitigation is not applicable to the format;
 - synchronized disassembly/pseudo-C, CFG, call graph, flow summary;
+- windowed function inventory (reuses the common virtualized table for interactive,
+  selectable rows) that stays responsive at the 5k-function cap;
 - evidence/provenance finding model, packing and obfuscation heuristics;
 - safe UPX and data-only decoder tools;
 - DB-backed jobs, memory triage, Volatility allowlist, normalized process tree/command
@@ -33,8 +35,7 @@
    archival policy.
 3. RetDec and r2ghidra adapters with the same process hardening contract.
 4. paginated artifact download and explicit report association for memory/dynamic runs.
-5. function-list windowing (the common table already has windowed rendering).
-6. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
+5. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
 
 ## Medium term
 

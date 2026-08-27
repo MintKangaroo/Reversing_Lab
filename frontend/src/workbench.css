@@ -338,7 +338,7 @@ body.is-resizing { user-select: none; cursor: col-resize; }
 .analysis-content > .table-scroll { max-height: 100%; }
 .workspace-padding { padding: 18px; }
 .function-search { width: min(320px, 45vw); }
-.function-table { max-height: calc(100vh - 330px); }
+.function-table .table-scroll { max-height: calc(100vh - 330px); }
 .function-table tbody tr { cursor: pointer; }
 .function-table tbody tr.selected-row td { background: rgba(122,162,247,.1); }
 .function-table tbody tr:focus td { outline: 1px solid var(--accent-dim); outline-offset: -1px; }
