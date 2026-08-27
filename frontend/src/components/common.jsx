@@ -61,19 +61,29 @@ export function StatusDot({ status = 'idle', label }) {
 }
 
 // A generic, sticky-header data table. `columns` = [{ key, header, render?, mono? }].
-export function DataTable({ columns, rows, emptyLabel = 'No data.' }) {
+export function DataTable({
+  columns,
+  rows,
+  emptyLabel = 'No data.',
+  ariaLabel = 'Analysis data',
+  rowKey,
+  onRowClick,
+  selectedKey,
+  rowClassName,
+  rowHeight = 31,
+}) {
   const [scrollTop, setScrollTop] = useState(0);
   if (!rows || rows.length === 0) return <Empty label={emptyLabel} />;
-  const rowHeight = 31;
   const virtualized = rows.length > 250;
   const start = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - 10) : 0;
   const end = virtualized ? Math.min(rows.length, start + 70) : rows.length;
   const visibleRows = rows.slice(start, end);
+  const interactive = typeof onRowClick === 'function';
   return (
     <div
       className="table-scroll"
       role="region"
-      aria-label="Analysis data"
+      aria-label={ariaLabel}
       data-virtualized={virtualized || undefined}
       tabIndex={0}
       onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
@@ -88,15 +98,36 @@ export function DataTable({ columns, rows, emptyLabel = 'No data.' }) {
         </thead>
         <tbody>
           {virtualized && start > 0 && <tr className="virtual-spacer" aria-hidden="true"><td colSpan={columns.length} style={{ height: start * rowHeight }} /></tr>}
-          {visibleRows.map((row, i) => (
-            <tr key={start + i}>
-              {columns.map((c) => (
-                <td key={c.key} className={c.mono ? 'mono' : undefined}>
-                  {c.render ? c.render(row) : row[c.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {visibleRows.map((row, i) => {
+            const key = rowKey ? rowKey(row) : start + i;
+            const selected = interactive && selectedKey !== undefined && rowKey && key === selectedKey;
+            const extra = typeof rowClassName === 'function' ? rowClassName(row) : rowClassName;
+            const className = [selected ? 'selected-row' : '', extra || ''].join(' ').trim() || undefined;
+            return (
+              <tr
+                key={key}
+                className={className}
+                onClick={interactive ? () => onRowClick(row) : undefined}
+                onKeyDown={
+                  interactive
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onRowClick(row);
+                        }
+                      }
+                    : undefined
+                }
+                tabIndex={interactive ? 0 : undefined}
+              >
+                {columns.map((c) => (
+                  <td key={c.key} className={c.mono ? 'mono' : undefined}>
+                    {c.render ? c.render(row) : row[c.key]}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
           {virtualized && end < rows.length && <tr className="virtual-spacer" aria-hidden="true"><td colSpan={columns.length} style={{ height: (rows.length - end) * rowHeight }} /></tr>}
         </tbody>
       </table>

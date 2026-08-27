@@ -1,6 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, hex } from '../api.js';
-import { ErrorBanner, Loading, ProvenanceBadge } from './common.jsx';
+import { DataTable, ErrorBanner, Loading, ProvenanceBadge } from './common.jsx';
+
+const COLUMNS = [
+  { key: 'address', header: 'Address', mono: true, render: (r) => <span className="address-cell">{hex(r.address)}</span> },
+  {
+    key: 'name',
+    header: 'Function',
+    render: (r) => (
+      <>
+        <strong className="mono">{r.user_name || r.demangled_name || r.name}</strong>
+        {r.user_name && <small className="original-name">original: {r.name}</small>}
+      </>
+    ),
+  },
+  { key: 'size', header: 'Size', mono: true },
+  { key: 'call_count', header: 'Calls', mono: true },
+  { key: 'basic_block_count', header: 'Blocks', mono: true },
+  { key: 'cyclomatic_complexity', header: 'Complexity', mono: true },
+  {
+    key: 'confidence',
+    header: 'Confidence',
+    render: (r) => (
+      <>
+        <ProvenanceBadge kind={r.provenance} />{' '}
+        <span className="confidence">{Math.round(r.confidence * 100)}%</span>
+      </>
+    ),
+  },
+];
 
 export function FunctionsTab({ sha, selectedAddress, onSelect }) {
   const [data, setData] = useState(null);
@@ -42,37 +70,17 @@ export function FunctionsTab({ sha, selectedAddress, onSelect }) {
         <span className="muted">{rows.length} of {data.total} functions</span>
         {data.items.some((item) => item.truncated) && <span className="badge medium">bounded result</span>}
       </div>
-      <div className="table-scroll function-table" role="region" aria-label="Recovered functions" tabIndex={0}>
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Address</th><th>Function</th><th>Size</th><th>Calls</th>
-              <th>Blocks</th><th>Complexity</th><th>Confidence</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((item) => (
-              <tr
-                key={item.address}
-                className={selectedAddress === item.address ? 'selected-row' : ''}
-                onClick={() => onSelect(item.address)}
-                onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && onSelect(item.address)}
-                tabIndex={0}
-              >
-                <td className="mono address-cell">{hex(item.address)}</td>
-                <td>
-                  <strong className="mono">{item.user_name || item.demangled_name || item.name}</strong>
-                  {item.user_name && <small className="original-name">original: {item.name}</small>}
-                </td>
-                <td className="mono">{item.size}</td>
-                <td className="mono">{item.call_count}</td>
-                <td className="mono">{item.basic_block_count}</td>
-                <td className="mono">{item.cyclomatic_complexity}</td>
-                <td><ProvenanceBadge kind={item.provenance} /> <span className="confidence">{Math.round(item.confidence * 100)}%</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="function-table">
+        <DataTable
+          columns={COLUMNS}
+          rows={rows}
+          ariaLabel="Recovered functions"
+          emptyLabel="No functions match the filter."
+          rowKey={(item) => item.address}
+          selectedKey={selectedAddress}
+          onRowClick={(item) => onSelect(item.address)}
+          rowHeight={34}
+        />
       </div>
     </div>
   );
