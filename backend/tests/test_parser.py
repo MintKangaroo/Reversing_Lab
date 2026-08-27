@@ -64,14 +64,39 @@ def test_pe_mitigations_from_dll_characteristics(pe_bytes: bytes) -> None:
     assert m.overlay_size == 0
 
 
-def test_macho_mitigations_default_to_not_applicable(macho_bytes: bytes) -> None:
-    # The Mach-O parser does not yet populate mitigations; the default must read as
-    # "not applicable" (None) across the board rather than a misleading False.
+def test_macho_mitigations_parity(macho_bytes: bytes) -> None:
     m = parse_binary(macho_bytes).mitigations
-    assert m.stack_canary is None
+    # Populated for Mach-O: signing, canary (via symbols), UUID build id, overlay.
+    assert m.signed is False  # no LC_CODE_SIGNATURE in the fixture.
+    assert m.stack_canary is False  # no __stack_chk_* symbol.
+    assert m.build_id is None  # no LC_UUID in the fixture.
+    assert m.has_debug_info is False  # no __DWARF segment.
+    # The fixture appends 0x100 trailing bytes past the mapped segments.
+    assert m.overlay_size == 0x100
+    # Control Flow Guard / TLS have no reliable Mach-O signal -> not applicable.
     assert m.control_flow_guard is None
-    assert m.build_id is None
-    assert m.overlay_size == 0
+    assert m.tls is None
+
+
+def test_macho_uuid_and_canary_helpers() -> None:
+    from reversing_lab.parser.macho_parser import _macho_mitigations, _macho_uuid
+
+    class _UuidBinary:
+        has_uuid = True
+        uuid = [0xDE, 0xAD, 0xBE, 0xEF]
+        has_code_signature = True
+        sections = []
+
+        @property
+        def overlay(self):
+            return b""
+
+    binary = _UuidBinary()
+    assert _macho_uuid(binary) == "deadbeef"
+    m = _macho_mitigations(binary, {"_main", "__stack_chk_fail"})
+    assert m.stack_canary is True
+    assert m.signed is True
+    assert m.build_id == "deadbeef"
 
 
 def test_elf_build_id_and_canary_helpers() -> None:

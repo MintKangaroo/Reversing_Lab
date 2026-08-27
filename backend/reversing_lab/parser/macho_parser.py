@@ -10,6 +10,7 @@ from .models import (
     BinaryInfo,
     Export,
     Import,
+    Mitigations,
     Section,
     Symbol,
 )
@@ -87,5 +88,56 @@ class MachoParser(AbstractBinaryParser):
             symbols=symbols,
             imports=imports,
             exports=exports,
+            mitigations=_macho_mitigations(binary, imported_names | exported_names),
             extra=extra,
         )
+
+
+def _macho_mitigations(binary: "lief.MachO.Binary", symbol_names: set[str]) -> Mitigations:
+    """Best-effort Mach-O mitigation/provenance extraction. Control Flow Guard and TLS
+    have no reliable Mach-O signal here, so they stay ``None`` (not applicable /
+    undetermined). Never raises: unusual binaries fall back to safe defaults."""
+    canary = {"__stack_chk_fail", "__stack_chk_guard"}
+    return Mitigations(
+        stack_canary=bool(canary & symbol_names),
+        control_flow_guard=None,
+        signed=_macho_safe_bool(lambda: binary.has_code_signature),
+        has_debug_info=_macho_has_dwarf(binary),
+        build_id=_macho_uuid(binary),
+        tls=None,
+        overlay_size=_macho_safe_int(lambda: len(binary.overlay)),
+    )
+
+
+def _macho_uuid(binary: "lief.MachO.Binary") -> str | None:
+    # LC_UUID is the Mach-O provenance anchor, mirrored to the same lowercase-hex form
+    # used for ELF build ids and PE PDB GUIDs.
+    try:
+        if not binary.has_uuid:
+            return None
+        return "".join(f"{b:02x}" for b in binary.uuid)
+    except Exception:  # noqa: BLE001 — odd binaries may fault on the UUID command.
+        return None
+
+
+def _macho_has_dwarf(binary: "lief.MachO.Binary") -> bool:
+    try:
+        return any(
+            getattr(section, "segment_name", "") == "__DWARF" for section in binary.sections
+        )
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _macho_safe_bool(getter) -> bool:
+    try:
+        return bool(getter())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _macho_safe_int(getter) -> int:
+    try:
+        return int(getter())
+    except Exception:  # noqa: BLE001
+        return 0
