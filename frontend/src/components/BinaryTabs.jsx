@@ -5,6 +5,7 @@ import { hex } from '../api.js';
 import { BoolBadge, DataTable } from './common.jsx';
 
 export function Overview({ info }) {
+  const mit = info.mitigations || {};
   const fields = [
     ['Format', info.binary_format],
     ['Architecture', `${info.architecture} (${info.bits}-bit)`],
@@ -32,6 +33,15 @@ export function Overview({ info }) {
           <div className="kv"><span className="k">PIE / ASLR</span><span className="v"><BoolBadge value={info.is_pie} on="enabled" off="disabled" /></span></div>
           <div className="kv"><span className="k">NX (no-execute)</span><span className="v"><BoolBadge value={info.has_nx} on="enabled" off="disabled" /></span></div>
           <div className="kv"><span className="k">RELRO</span><span className="v"><BoolBadge value={info.has_relro} on="enabled" off="disabled" /></span></div>
+          <div className="kv"><span className="k">Stack canary</span><span className="v"><BoolBadge value={mit.stack_canary} on="enabled" off="disabled" /></span></div>
+          <div className="kv"><span className="k">Control Flow Guard / CET</span><span className="v"><BoolBadge value={mit.control_flow_guard} on="enabled" off="disabled" /></span></div>
+          <div className="kv"><span className="k">Code signature</span><span className="v"><BoolBadge value={mit.signed} on="signed" off="unsigned" /></span></div>
+          <div className="kv"><span className="k">Debug info</span><span className="v"><BoolBadge value={mit.has_debug_info} on="present" off="stripped" /></span></div>
+          <div className="kv"><span className="k">TLS callbacks / PT_TLS</span><span className="v"><BoolBadge value={mit.tls} on="present" off="none" /></span></div>
+          <div className="kv"><span className="k">Overlay</span><span className="v">{mit.overlay_size > 0 ? <span className="badge off">{mit.overlay_size.toLocaleString()} bytes</span> : <span className="badge on">none</span>}</span></div>
+          {mit.build_id && (
+            <div className="kv"><span className="k">Build ID</span><span className="v mono" style={{ overflowWrap: 'anywhere' }}>{mit.build_id}</span></div>
+          )}
         </div>
       </div>
 
