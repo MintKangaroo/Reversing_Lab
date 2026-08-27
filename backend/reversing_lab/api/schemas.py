@@ -1115,6 +1115,22 @@ class GhidraTriageSchema(BaseModel):
     elapsed_ms: int
 
 
+class RuleStringMatchSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    identifier: str
+    offset: int
+
+
+class RuleMatchSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    name: str
+    description: str
+    severity: Literal["info", "low", "medium", "high", "critical"]
+    category: str
+    mitre_id: str | None = None
+    strings: list[RuleStringMatchSchema]
+
+
 class MalwareTriageReportSchema(BaseModel):
     model_config = _FROM_ATTRS
     sha256: str
@@ -1123,6 +1139,7 @@ class MalwareTriageReportSchema(BaseModel):
     summary: str
     capabilities: list[CapabilityMatchSchema]
     indicators: list[IndicatorOfCompromiseSchema]
+    signature_matches: list[RuleMatchSchema]
     packed: bool
     packing_score: int
     detected_packer: str | None = None

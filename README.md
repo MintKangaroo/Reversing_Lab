@@ -64,9 +64,13 @@ docker compose up --build
 |---|---|
 | ![Program Flow](docs/screenshots/08-program-flow.png) | ![Obfuscation](docs/screenshots/10-obfuscation.png) |
 
-| 악성코드 트리아지 | Ghidra 미설치 시 graceful degrade |
+| 악성코드 트리아지 (정적) | Ghidra 헤드리스 보강 (실측) |
 |---|---|
-| ![Malware Triage](docs/screenshots/17-malware-triage.png) | ![Ghidra fallback](docs/screenshots/18-malware-ghidra.png) |
+| ![Malware Triage](docs/screenshots/17-malware-triage.png) | ![Ghidra enriched](docs/screenshots/18-malware-ghidra.png) |
+
+| Ghidra 확인 호출부 (main의 socket/connect/execl/system) |
+|---|
+| ![Ghidra flagged calls](docs/screenshots/19-malware-ghidra-calls.png) |
 
 | 메모리 Region Inspector | 격리 실행 안전 게이트 |
 |---|---|
@@ -88,7 +92,7 @@ docker compose up --build
 | 함수 분석 | bounded function recovery, xref, disassembly, CFG, call graph, program flow |
 | 디컴파일 | Ghidra headless adapter, 외부 도구가 없어도 동작하는 pseudo-C fallback |
 | 탐지 | 근거·confidence가 포함된 패킹 및 난독화 finding, 명시적 UPX adapter |
-| 악성코드 트리아지 | import 기반 capability 분류(ATT&CK 매핑), 문자열 IOC 추출, 위험 점수·판정, 선택적 Ghidra headless 호출부 확인 |
+| 악성코드 트리아지 | import 기반 capability 분류(ATT&CK 매핑), Winsock ordinal 복원, 내장 시그니처 룰 엔진(YARA 스타일), 문자열 IOC 추출, 위험 점수·판정, Ghidra headless 호출부 확인(Ghidra 12.1.3로 실측) |
 | 메모리 | data-only fallback, process/thread/command-line/DLL/handle/VAD/network 정규화, bounded VAD hex/disassembly |
 | 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
 | 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
