@@ -4,9 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from reversing_lab.challenge.elfbuilder import build_elf64
-from reversing_lab.decompiler import DecompileOptions, decompile_function
+from reversing_lab.decompiler import DecompileOptions, decompile_function, list_decompilers
+from reversing_lab.decompiler import r2ghidra as r2ghidra_mod
+from reversing_lab.decompiler import retdec as retdec_mod
 from reversing_lab.decompiler.ghidra import GhidraDecompilerAdapter
+from reversing_lab.decompiler.r2ghidra import R2GhidraDecompilerAdapter
+from reversing_lab.decompiler.retdec import RetDecDecompilerAdapter
+from reversing_lab.errors import IntegrationUnavailableError
 
 
 def _conditional_fixture() -> bytes:
@@ -39,6 +46,101 @@ def test_auto_falls_back_when_ghidra_is_unavailable(
     assert result.provider == "pseudo_c"
     assert any("ghidra is unavailable" in warning for warning in result.warnings)
     assert GhidraDecompilerAdapter().is_available() is False
+
+
+# --- external decompiler adapters (r2ghidra, RetDec) ------------------------------
+def test_new_providers_are_registered() -> None:
+    names = {info.name for info in list_decompilers()}
+    assert {"r2ghidra", "retdec", "ghidra", "pseudo_c"} <= names
+
+
+def test_external_adapters_unavailable_without_tools(monkeypatch) -> None:
+    monkeypatch.setattr(r2ghidra_mod.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(retdec_mod.shutil, "which", lambda _name: None)
+    assert R2GhidraDecompilerAdapter().is_available() is False
+    assert RetDecDecompilerAdapter().is_available() is False
+
+
+def test_auto_degrades_through_external_providers(tmp_path: Path, monkeypatch) -> None:
+    # No external tool present: auto must traverse the chain and land on pseudo-C,
+    # recording that each external provider was unavailable.
+    monkeypatch.delenv("GHIDRA_HOME", raising=False)
+    monkeypatch.setattr(r2ghidra_mod.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(retdec_mod.shutil, "which", lambda _name: None)
+    sample = tmp_path / "sample"
+    sample.write_bytes(_conditional_fixture())
+    result = decompile_function(sample, 0x401000)
+    assert result.provider == "pseudo_c"
+    assert any("r2ghidra is unavailable" in w for w in result.warnings)
+    assert any("retdec is unavailable" in w for w in result.warnings)
+
+
+def test_r2ghidra_parses_pdgj_output(tmp_path: Path, monkeypatch) -> None:
+    sample = tmp_path / "sample"
+    sample.write_bytes(_conditional_fixture())
+    monkeypatch.setattr(r2ghidra_mod.shutil, "which", lambda _name: "/usr/bin/r2")
+
+    class _Completed:
+        returncode = 0
+        stdout = b'{"code": "int sub_401000(void) { return 0; }"}'
+        stderr = b""
+
+    monkeypatch.setattr(r2ghidra_mod.subprocess, "run", lambda *a, **k: _Completed())
+    result = R2GhidraDecompilerAdapter().decompile_function(
+        sample, 0x401000, DecompileOptions()
+    )
+    assert result.provider == "r2ghidra"
+    assert "int sub_401000" in result.code
+
+
+def test_r2ghidra_missing_plugin_raises_typed_error(tmp_path: Path, monkeypatch) -> None:
+    sample = tmp_path / "sample"
+    sample.write_bytes(_conditional_fixture())
+    monkeypatch.setattr(r2ghidra_mod.shutil, "which", lambda _name: "/usr/bin/r2")
+
+    class _Completed:
+        returncode = 0
+        stdout = b"Cannot find plugin\n"  # non-JSON: plugin absent
+        stderr = b""
+
+    monkeypatch.setattr(r2ghidra_mod.subprocess, "run", lambda *a, **k: _Completed())
+    with pytest.raises(IntegrationUnavailableError):
+        R2GhidraDecompilerAdapter().decompile_function(sample, 0x401000, DecompileOptions())
+
+
+def test_retdec_reads_output_and_names_function(tmp_path: Path, monkeypatch) -> None:
+    sample = tmp_path / "sample"
+    sample.write_bytes(_conditional_fixture())
+    monkeypatch.setattr(retdec_mod.shutil, "which", lambda _name: "/usr/bin/retdec-decompiler")
+
+    def _fake_run(command, **_kwargs):
+        out = Path(command[command.index("-o") + 1])
+        out.write_text("int entry(void) { return 1; }\n", encoding="utf-8")
+        out.with_suffix(".config.json").write_text(
+            '{"functions": [{"startAddr": "0x401000", "name": "entry"}]}', encoding="utf-8"
+        )
+        return type("C", (), {"returncode": 0, "stdout": b"", "stderr": b""})()
+
+    monkeypatch.setattr(retdec_mod.subprocess, "run", _fake_run)
+    result = RetDecDecompilerAdapter().decompile_function(sample, 0x401000, DecompileOptions())
+    assert result.provider == "retdec"
+    assert result.function_name == "entry"
+    assert "int entry" in result.code
+
+
+def test_retdec_timeout_raises_typed_error(tmp_path: Path, monkeypatch) -> None:
+    import subprocess as _subprocess
+
+    sample = tmp_path / "sample"
+    sample.write_bytes(_conditional_fixture())
+    monkeypatch.setattr(retdec_mod.shutil, "which", lambda _name: "/usr/bin/retdec-decompiler")
+
+    def _timeout(*_a, **_k):
+        raise _subprocess.TimeoutExpired(cmd="retdec", timeout=1.0)
+
+    monkeypatch.setattr(retdec_mod.subprocess, "run", _timeout)
+    with pytest.raises(IntegrationUnavailableError):
+        RetDecDecompilerAdapter().decompile_function(sample, 0x401000, DecompileOptions())
 
 
 def test_decompile_api_returns_estimated_code(api_client) -> None:
