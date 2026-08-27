@@ -4,9 +4,9 @@
 
 - dark resizable analysis shell and hash routing;
 - normalized static parsing and function analysis;
-- richer PE/ELF mitigation & provenance metadata (stack canary, Control Flow Guard/CET,
-  Authenticode signing, debug info, build ID, TLS callbacks/PT_TLS, overlay), tri-state
-  where a mitigation is not applicable to the format;
+- richer PE/ELF/Mach-O mitigation & provenance metadata (stack canary, Control Flow
+  Guard/CET, code signing, debug info, build ID/UUID, TLS callbacks/PT_TLS, overlay),
+  tri-state where a mitigation is not applicable to the format;
 - synchronized disassembly/pseudo-C, CFG, call graph, flow summary;
 - evidence/provenance finding model, packing and obfuscation heuristics;
 - safe UPX and data-only decoder tools;
@@ -35,7 +35,6 @@
 4. paginated artifact download and explicit report association for memory/dynamic runs.
 5. function-list windowing (the common table already has windowed rendering).
 6. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
-7. Mach-O mitigation parity (code signature, LC_UUID build id, canary via symbols).
 
 ## Medium term
 
