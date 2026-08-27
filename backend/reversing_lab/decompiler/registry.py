@@ -9,9 +9,13 @@ from ..errors import IntegrationUnavailableError
 from .base import DecompileOptions, DecompilerAdapter, DecompilerInfo, DecompiledFunction
 from .fallback import FallbackPseudoCAdapter
 from .ghidra import GhidraDecompilerAdapter
+from .r2ghidra import R2GhidraDecompilerAdapter
+from .retdec import RetDecDecompilerAdapter
 
 _ADAPTERS: tuple[DecompilerAdapter, ...] = (
     GhidraDecompilerAdapter(),
+    R2GhidraDecompilerAdapter(),
+    RetDecDecompilerAdapter(),
     FallbackPseudoCAdapter(),
 )
 

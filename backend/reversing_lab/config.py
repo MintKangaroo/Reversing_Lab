@@ -175,6 +175,10 @@ class Settings(BaseSettings):
 
     # --- Integrations ------------------------------------------------------------
     radare2_path: str = Field(default="r2", description="radare2 executable name/path.")
+    retdec_path: str = Field(
+        default="retdec-decompiler",
+        description="RetDec decompiler executable name/path (enables the retdec provider).",
+    )
     upx_path: str = Field(default="upx", description="UPX executable name/path.")
     volatility_path: str = Field(
         default="vol", description="Volatility 3 executable name/path."

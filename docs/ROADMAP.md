@@ -8,6 +8,8 @@
   Guard/CET, code signing, debug info, build ID/UUID, TLS callbacks/PT_TLS, overlay),
   tri-state where a mitigation is not applicable to the format;
 - synchronized disassembly/pseudo-C, CFG, call graph, flow summary;
+- r2ghidra and RetDec decompiler adapters reusing the Ghidra process-hardening contract
+  (fixed argv, minimal env, timeout, output cap, graceful degradation to pseudo-C);
 - windowed function inventory (reuses the common virtualized table for interactive,
   selectable rows) that stays responsive at the 5k-function cap;
 - evidence/provenance finding model, packing and obfuscation heuristics;
@@ -33,9 +35,10 @@
 2. OIDC/short-lived credentials, centralized revocation, server-side rate limiting,
    and a managed provider that anchors exports in signed/WORM-backed storage with an
    archival policy.
-3. RetDec and r2ghidra adapters with the same process hardening contract.
-4. paginated artifact download and explicit report association for memory/dynamic runs.
-5. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
+3. paginated artifact download and explicit report association for memory/dynamic runs.
+4. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
+5. live-verify the r2ghidra/RetDec adapters against real installs (parsing is wired and
+   unit-tested via mocks; end-to-end output is unconfirmed until the tools are present).
 
 ## Medium term
 
