@@ -1076,3 +1076,55 @@ class IntegrationResultSchema(BaseModel):
     summary: str
     functions: list[str]
     data: dict[str, str]
+
+
+# --- Malware triage ---------------------------------------------------------------
+class CapabilityMatchSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    category: str
+    title: str
+    severity: Literal["info", "low", "medium", "high", "critical"]
+    description: str
+    apis: list[str]
+    mitre_id: str | None = None
+
+
+class IndicatorOfCompromiseSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    kind: Literal["url", "ipv4", "domain", "registry", "filepath", "email"]
+    value: str
+    offset: int
+    encoding: str
+
+
+class GhidraFlaggedCallSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    api_name: str
+    call_site: int
+    caller: str
+
+
+class GhidraTriageSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    available: bool
+    analyzed: bool
+    function_count: int
+    imported_symbol_count: int
+    flagged_calls: list[GhidraFlaggedCallSchema]
+    detail: str
+    elapsed_ms: int
+
+
+class MalwareTriageReportSchema(BaseModel):
+    model_config = _FROM_ATTRS
+    sha256: str
+    verdict: Literal["benign", "low_risk", "suspicious", "likely_malicious"]
+    risk_score: int
+    summary: str
+    capabilities: list[CapabilityMatchSchema]
+    indicators: list[IndicatorOfCompromiseSchema]
+    packed: bool
+    packing_score: int
+    detected_packer: str | None = None
+    ghidra: GhidraTriageSchema
+    limitations: list[str]

@@ -84,6 +84,7 @@ docker compose up --build
 | 함수 분석 | bounded function recovery, xref, disassembly, CFG, call graph, program flow |
 | 디컴파일 | Ghidra headless adapter, 외부 도구가 없어도 동작하는 pseudo-C fallback |
 | 탐지 | 근거·confidence가 포함된 패킹 및 난독화 finding, 명시적 UPX adapter |
+| 악성코드 트리아지 | import 기반 capability 분류(ATT&CK 매핑), 문자열 IOC 추출, 위험 점수·판정, 선택적 Ghidra headless 호출부 확인 |
 | 메모리 | data-only fallback, process/thread/command-line/DLL/handle/VAD/network 정규화, bounded VAD hex/disassembly |
 | 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
 | 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
@@ -162,7 +163,7 @@ SHA-256 hash chain을 계산합니다. 외부 archive로 옮긴 뒤 파일 내�
 
 | 도구 | 설정 | 사용처 |
 |---|---|---|
-| Ghidra | `GHIDRA_HOME=/opt/ghidra` | 함수 단위 headless decompile |
+| Ghidra | `GHIDRA_HOME=/opt/ghidra` | 함수 단위 headless decompile, 악성코드 트리아지 의심 호출부 확인 |
 | UPX | `RLAB_UPX_PATH=upx` | 사용자 확인 후 별도 unpacked artifact 생성 |
 | Volatility 3 | `RLAB_VOLATILITY_PATH=vol` | process/thread/command-line/module/handle/VAD/network 정규화와 명시적 VAD 추출 |
 | radare2 | `RLAB_RADARE2_PATH=r2` | 선택적 whole-binary 분석 |

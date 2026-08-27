@@ -30,6 +30,7 @@ from .routes import (
     health,
     integrations,
     jobs,
+    malware,
     memory,
     projects,
     reports,
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
     app.include_router(audit.router, prefix=api_prefix)
     app.include_router(binaries.router, prefix=api_prefix)
     app.include_router(analysis.router, prefix=api_prefix)
+    app.include_router(malware.router, prefix=api_prefix)
     app.include_router(projects.router, prefix=api_prefix)
     app.include_router(tools.router, prefix=api_prefix)
     app.include_router(tooling.router, prefix=api_prefix)

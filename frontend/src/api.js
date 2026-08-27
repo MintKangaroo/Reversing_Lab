@@ -61,6 +61,8 @@ export const api = {
   packing: (sha) => request(`/binaries/${sha}/packing`),
   obfuscation: (sha) => request(`/binaries/${sha}/obfuscation`),
   findings: (sha) => request(`/binaries/${sha}/findings`),
+  malwareTriage: (sha, useGhidra = false) =>
+    request(`/binaries/${sha}/malware?use_ghidra=${useGhidra}`),
   unpack: (sha) =>
     request(`/binaries/${sha}/unpack`, {
       method: 'POST',
