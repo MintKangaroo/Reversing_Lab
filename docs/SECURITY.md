@@ -12,9 +12,15 @@ The built-in roles are deliberately coarse. Viewers are HTTP read-only, analysts
 mutate state, and admins may audit all resources. Non-admin access is enforced through
 binary grants and owner-scoped repositories for projects, overlays, artifacts, jobs,
 dumps, dynamic runs, CTF state, and reports. Cross-owner lookups return 404. This is
-still not a complete identity/control plane: OIDC, centralized revocation, and
-server-side rate limits remain future work. See
-[AUTHENTICATION.md](AUTHENTICATION.md).
+still not a complete identity/control plane: OIDC and centralized revocation remain
+future work. See [AUTHENTICATION.md](AUTHENTICATION.md).
+
+An opt-in per-principal rate limiter (`RLAB_RATE_LIMIT_ENABLED`, with
+`RLAB_RATE_LIMIT_REQUESTS` per `RLAB_RATE_LIMIT_WINDOW_SECONDS`) rejects excess requests
+with `429` and a `Retry-After` header, keyed on the authenticated principal (falling back
+to client host). The counter is in-process: it is a real guardrail for a single-worker
+deployment, but a multi-worker or multi-host deployment must still enforce a global limit
+at the proxy or with a shared store — the in-process limiter is not distributed.
 
 Mutation requests receive a server-generated request ID and append method, matched
 route template, principal/role, resource metadata, status, and outcome to the database.
