@@ -10,6 +10,7 @@
 - synchronized disassembly/pseudo-C, CFG, call graph, flow summary;
 - r2ghidra and RetDec decompiler adapters reusing the Ghidra process-hardening contract
   (fixed argv, minimal env, timeout, output cap, graceful degradation to pseudo-C);
+  r2ghidra live-verified end-to-end against a real radare2 + plugin install;
 - windowed function inventory (reuses the common virtualized table for interactive,
   selectable rows) that stays responsive at the 5k-function cap;
 - evidence/provenance finding model, packing and obfuscation heuristics;
@@ -37,8 +38,8 @@
    archival policy.
 3. paginated artifact download and explicit report association for memory/dynamic runs.
 4. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
-5. live-verify the r2ghidra/RetDec adapters against real installs (parsing is wired and
-   unit-tested via mocks; end-to-end output is unconfirmed until the tools are present).
+5. live-verify the RetDec adapter against a real install (parsing is wired and
+   unit-tested via mocks; r2ghidra is already end-to-end verified, RetDec is not yet).
 
 ## Medium term
 
