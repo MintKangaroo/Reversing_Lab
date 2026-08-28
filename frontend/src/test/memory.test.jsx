@@ -120,10 +120,13 @@ beforeEach(() => {
   api.inspectMemoryRegion.mockResolvedValue({
     id: 'region-job-1', state: 'queued', progress: 0, message: 'Queued', error: null,
   });
-  api.memoryRegionArtifacts.mockResolvedValue([{
-    id: 'artifact-1', pid: 44, start_hex: '0x1000', end_hex: '0x1fff',
-    architecture: 'x86_64', size: 4096, content_sha256: 'b'.repeat(64), provider: 'volatility3',
-  }]);
+  api.memoryRegionArtifacts.mockResolvedValue({
+    items: [{
+      id: 'artifact-1', pid: 44, start_hex: '0x1000', end_hex: '0x1fff',
+      architecture: 'x86_64', size: 4096, content_sha256: 'b'.repeat(64), provider: 'volatility3',
+    }],
+    total: 1, offset: 0, limit: 200,
+  });
   api.memoryRegionHex.mockResolvedValue({
     offset: 0, length: 16, total_size: 4096, base_address_hex: '0x1000',
     rows: [{ offset: 0, address_hex: '0x1000', hex_bytes: ['48', '31', 'c0', 'c3'], ascii: 'H1..' }],

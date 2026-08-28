@@ -27,6 +27,7 @@
   migration, and content-addressed binary access grants;
 - opt-in per-principal server-side rate limiting (in-process fixed window, 429 +
   Retry-After);
+- paginated memory region-artifact listing (offset/limit/total page envelope);
 - body-free append-only mutation audit events, request correlation, principal-scoped
   audit UI, bounded hash-chained JSONL export, and dry-run-first owned-data retention
   with reference-safe file reclaim;
@@ -39,7 +40,7 @@
 2. OIDC/short-lived credentials, centralized revocation,
    and a managed provider that anchors exports in signed/WORM-backed storage with an
    archival policy.
-3. paginated artifact download and explicit report association for memory/dynamic runs.
+3. explicit report association / export for memory and dynamic runs.
 4. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
 
 ## Medium term

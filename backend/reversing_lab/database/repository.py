@@ -803,17 +803,25 @@ class MemoryDumpRepository(_OwnedRepository):
         return record
 
     def list_region_artifacts(
-        self, dump_id: str, limit: int = 200
-    ) -> list[MemoryRegionArtifactRecord]:
+        self, dump_id: str, limit: int = 200, offset: int = 0
+    ) -> tuple[list[MemoryRegionArtifactRecord], int]:
         self.get(dump_id)
+        count_statement = self._read_scope(
+            select(func.count())
+            .select_from(MemoryRegionArtifactRecord)
+            .where(MemoryRegionArtifactRecord.memory_dump_id == dump_id),
+            MemoryRegionArtifactRecord,
+        )
+        total = self._session.scalar(count_statement)
         statement = (
             select(MemoryRegionArtifactRecord)
             .where(MemoryRegionArtifactRecord.memory_dump_id == dump_id)
             .order_by(MemoryRegionArtifactRecord.created_at.desc())
+            .offset(offset)
             .limit(limit)
         )
         statement = self._read_scope(statement, MemoryRegionArtifactRecord)
-        return list(self._session.scalars(statement))
+        return list(self._session.scalars(statement)), int(total or 0)
 
     def read_region_artifact(self, record: MemoryRegionArtifactRecord) -> bytes:
         path = Path(record.storage_path).resolve()

@@ -23,7 +23,7 @@ export function MemoryRegionInspector({ dump, regions, volatility }) {
   useEffect(() => {
     let active = true;
     api.memoryRegionArtifacts(dump.id)
-      .then((items) => active && setArtifacts(items))
+      .then((page) => active && setArtifacts(page.items))
       .catch((failure) => active && setError(failure.message));
     return () => { active = false; };
   }, [dump.id]);
@@ -53,9 +53,9 @@ export function MemoryRegionInspector({ dump, regions, volatility }) {
         const next = await api.job(job.id);
         setJob(next);
         if (next.state === 'completed') {
-          const items = await api.memoryRegionArtifacts(dump.id);
-          setArtifacts(items);
-          const artifact = items.find((item) => item.id === next.result_ref);
+          const page = await api.memoryRegionArtifacts(dump.id);
+          setArtifacts(page.items);
+          const artifact = page.items.find((item) => item.id === next.result_ref);
           if (artifact) await loadArtifact(artifact, 0);
         }
       } catch (failure) {

@@ -35,6 +35,7 @@ from ..schemas import (
     MemoryNetworkArtifactSchema,
     MemoryProcessPageSchema,
     MemoryProcessSchema,
+    MemoryRegionArtifactPageSchema,
     MemoryRegionArtifactSchema,
     MemoryRegionDisassemblySchema,
     MemoryRegionHexPageSchema,
@@ -401,17 +402,21 @@ def inspect_memory_region(
 
 
 @router.get(
-    "/{dump_id}/region-artifacts", response_model=list[MemoryRegionArtifactSchema]
+    "/{dump_id}/region-artifacts", response_model=MemoryRegionArtifactPageSchema
 )
 def memory_region_artifacts(
     dump_id: str,
     limit: int = Query(200, ge=1, le=1_000),
+    offset: int = Query(0, ge=0),
     repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
-) -> list[MemoryRegionArtifactSchema]:
-    return [
-        MemoryRegionArtifactSchema.model_validate(item)
-        for item in repository.list_region_artifacts(dump_id, limit)
-    ]
+) -> MemoryRegionArtifactPageSchema:
+    items, total = repository.list_region_artifacts(dump_id, limit, offset)
+    return MemoryRegionArtifactPageSchema(
+        items=[MemoryRegionArtifactSchema.model_validate(item) for item in items],
+        total=total,
+        offset=offset,
+        limit=limit,
+    )
 
 
 def _artifact_bytes(repository: MemoryDumpRepository, dump_id: str, artifact_id: str):
