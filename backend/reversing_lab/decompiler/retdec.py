@@ -15,15 +15,20 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import time
 from pathlib import Path
 
+from ..analysis.models import ProvenanceKind
 from ..config import get_settings
 from ..errors import IntegrationUnavailableError
-from .base import DecompileOptions, DecompiledFunction
+from .base import DecompileOptions, DecompiledFunction, SourceMapEntry
+
+# RetDec annotates decompiled lines with the originating address, e.g. `// 0x401008`.
+_ADDR_COMMENT = re.compile(r"//\s*(0x[0-9a-fA-F]+)")
 
 
 # Upper bound on the byte range fed to --select-ranges. RetDec follows the function's
@@ -104,10 +109,34 @@ class RetDecDecompilerAdapter:
             variables=(),
             parameters=(),
             return_type=None,
-            source_map=(),
+            source_map=_source_map(code),
             provider=self.name,
             elapsed_ms=round((time.monotonic() - started) * 1000),
         )
+
+
+def _source_map(code: str) -> tuple[SourceMapEntry, ...]:
+    """Build a per-line address map from RetDec's ``// 0xADDR`` line comments so the UI
+    can sync a clicked decompiled line back to the disassembly."""
+    entries: list[SourceMapEntry] = []
+    for index, line in enumerate(code.splitlines(), start=1):
+        match = _ADDR_COMMENT.search(line)
+        if match is None:
+            continue
+        try:
+            address = int(match.group(1), 16)
+        except ValueError:
+            continue
+        entries.append(
+            SourceMapEntry(
+                line=index,
+                address_start=address,
+                address_end=address,
+                confidence=0.7,
+                provenance=ProvenanceKind.INFERRED,
+            )
+        )
+    return tuple(entries)
 
 
 def _function_name_at(config_path: Path, address: int) -> str | None:

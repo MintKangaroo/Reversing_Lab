@@ -11,7 +11,7 @@
 - r2ghidra and RetDec decompiler adapters reusing the Ghidra process-hardening contract
   (fixed argv, minimal env, timeout, output cap, graceful degradation to pseudo-C);
   both live-verified end-to-end against real installs (radare2 6.2.0 + r2ghidra plugin,
-  RetDec v5.0);
+  RetDec v5.0), each emitting a per-line source map for decompiled-line-to-address sync;
 - windowed function inventory (reuses the common virtualized table for interactive,
   selectable rows) that stays responsive at the 5k-function cap;
 - evidence/provenance finding model, packing and obfuscation heuristics;
@@ -41,7 +41,8 @@
    and a managed provider that anchors exports in signed/WORM-backed storage with an
    archival policy.
 3. explicit report association / export for memory and dynamic runs.
-4. source-line mapping and improved ARM/AArch64/MIPS CFG recovery.
+4. improved ARM/AArch64/MIPS CFG recovery (source-line mapping now lands via the
+   decompiler adapters).
 
 ## Medium term
 
