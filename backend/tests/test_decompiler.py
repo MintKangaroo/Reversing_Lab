@@ -146,6 +146,23 @@ def test_r2ghidra_live_decompiles_when_installed(tmp_path: Path) -> None:
     assert result.code.strip()
 
 
+def test_retdec_live_decompiles_when_installed(tmp_path: Path) -> None:
+    # Opt-in live integration (skipped without retdec-decompiler on PATH). Guards the
+    # real CLI invocation — notably the --select-ranges decode window, since a
+    # zero-length range decodes nothing ("No instructions were decoded").
+    adapter = RetDecDecompilerAdapter()
+    if not adapter.is_available():
+        pytest.skip("retdec-decompiler is not on PATH")
+    sample = tmp_path / "sample"
+    sample.write_bytes(_conditional_fixture())
+    try:
+        result = adapter.decompile_function(sample, 0x401000, DecompileOptions(timeout_seconds=180))
+    except IntegrationUnavailableError as exc:
+        pytest.skip(f"retdec not usable: {exc}")
+    assert result.provider == "retdec"
+    assert result.code.strip()
+
+
 def test_retdec_timeout_raises_typed_error(tmp_path: Path, monkeypatch) -> None:
     import subprocess as _subprocess
 
