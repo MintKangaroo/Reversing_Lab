@@ -19,9 +19,10 @@ import subprocess
 import time
 from pathlib import Path
 
+from ..analysis.models import ProvenanceKind
 from ..config import get_settings
 from ..errors import IntegrationUnavailableError
-from .base import DecompileOptions, DecompiledFunction
+from .base import DecompileOptions, DecompiledFunction, SourceMapEntry
 
 
 class R2GhidraDecompilerAdapter:
@@ -110,7 +111,58 @@ class R2GhidraDecompilerAdapter:
             variables=(),
             parameters=(),
             return_type=None,
-            source_map=(),
+            source_map=_source_map(str(code), payload.get("annotations", [])),
             provider=self.name,
             elapsed_ms=round((time.monotonic() - started) * 1000),
         )
+
+
+def _source_map(code: str, annotations: object) -> tuple[SourceMapEntry, ...]:
+    """Turn r2ghidra ``offset`` annotations into a per-line address map.
+
+    Each ``offset`` annotation ties a character span of ``code`` to an address; we
+    collapse those to one entry per source line (min/max address) so the UI can sync a
+    clicked decompiled line back to the disassembly. Never raises on odd payloads."""
+    if not isinstance(annotations, list):
+        return ()
+    # Byte/char index -> line number (1-based), from newline positions.
+    line_starts = [0]
+    for index, char in enumerate(code):
+        if char == "\n":
+            line_starts.append(index + 1)
+
+    def line_of(position: int) -> int:
+        lo, hi = 0, len(line_starts) - 1
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if line_starts[mid] <= position:
+                lo = mid
+            else:
+                hi = mid - 1
+        return lo + 1
+
+    per_line: dict[int, tuple[int, int]] = {}
+    for annotation in annotations:
+        if not isinstance(annotation, dict) or annotation.get("type") != "offset":
+            continue
+        try:
+            start = int(annotation["start"])
+            offset = int(annotation["offset"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not 0 <= start <= len(code):
+            continue
+        line = line_of(start)
+        low, high = per_line.get(line, (offset, offset))
+        per_line[line] = (min(low, offset), max(high, offset))
+
+    return tuple(
+        SourceMapEntry(
+            line=line,
+            address_start=low,
+            address_end=high,
+            confidence=0.7,
+            provenance=ProvenanceKind.INFERRED,
+        )
+        for line, (low, high) in sorted(per_line.items())
+    )

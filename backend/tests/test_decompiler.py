@@ -61,6 +61,33 @@ def test_external_adapters_unavailable_without_tools(monkeypatch) -> None:
     assert RetDecDecompilerAdapter().is_available() is False
 
 
+def test_r2ghidra_source_map_from_offset_annotations() -> None:
+    from reversing_lab.decompiler.r2ghidra import _source_map
+
+    code = "int f(void)\n{\n    return 0;\n}\n"
+    # Offsets are character positions into `code`; line 1 -> 0x1000, line 3 -> 0x1008.
+    annotations = [
+        {"type": "offset", "start": 0, "offset": 0x1000},
+        {"type": "offset", "start": code.index("return"), "offset": 0x1008},
+        {"type": "offset", "start": code.index("return") + 2, "offset": 0x100C},
+        {"type": "syntax_highlight", "start": 0, "offset": 0x9999},  # ignored
+    ]
+    entries = _source_map(code, annotations)
+    by_line = {e.line: (e.address_start, e.address_end) for e in entries}
+    assert by_line[1] == (0x1000, 0x1000)
+    assert by_line[3] == (0x1008, 0x100C)  # both return-line offsets collapse to line 3
+    assert _source_map(code, "not-a-list") == ()
+
+
+def test_retdec_source_map_from_address_comments() -> None:
+    from reversing_lab.decompiler.retdec import _source_map
+
+    code = "int f(void) {\n    // 0x401000\n    int v; // 0x401008\n    return v;\n}\n"
+    entries = _source_map(code)
+    by_line = {e.line: e.address_start for e in entries}
+    assert by_line == {2: 0x401000, 3: 0x401008}
+
+
 def test_auto_degrades_through_external_providers(tmp_path: Path, monkeypatch) -> None:
     # No external tool present: auto must traverse the chain and land on pseudo-C,
     # recording that each external provider was unavailable.
@@ -144,6 +171,9 @@ def test_r2ghidra_live_decompiles_when_installed(tmp_path: Path) -> None:
         pytest.skip(f"r2ghidra plugin not usable: {exc}")
     assert result.provider == "r2ghidra"
     assert result.code.strip()
+    # The offset annotations must yield a usable line->address map.
+    assert result.source_map
+    assert all(e.address_start >= 0x401000 for e in result.source_map)
 
 
 def test_retdec_live_decompiles_when_installed(tmp_path: Path) -> None:
@@ -161,6 +191,9 @@ def test_retdec_live_decompiles_when_installed(tmp_path: Path) -> None:
         pytest.skip(f"retdec not usable: {exc}")
     assert result.provider == "retdec"
     assert result.code.strip()
+    # The `// 0xADDR` comments must yield a usable line->address map.
+    assert result.source_map
+    assert all(e.address_start >= 0x401000 for e in result.source_map)
 
 
 def test_retdec_timeout_raises_typed_error(tmp_path: Path, monkeypatch) -> None:
