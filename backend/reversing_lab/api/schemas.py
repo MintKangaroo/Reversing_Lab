@@ -884,6 +884,13 @@ class MemoryRegionArtifactSchema(BaseModel):
         return f"0x{self.end_address:x}"
 
 
+class MemoryRegionArtifactPageSchema(BaseModel):
+    items: list[MemoryRegionArtifactSchema]
+    total: int
+    offset: int
+    limit: int
+
+
 class MemoryRegionHexRowSchema(BaseModel):
     offset: int
     address: int

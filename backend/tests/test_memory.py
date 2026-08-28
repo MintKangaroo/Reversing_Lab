@@ -974,10 +974,21 @@ def test_memory_region_inspection_artifact_hex_disassembly_and_download(
     artifacts = api_client.get(
         f"/api/memory-dumps/{dump_id}/region-artifacts"
     ).json()
-    assert len(artifacts) == 1
-    assert artifacts[0]["id"] == artifact_id
-    assert artifacts[0]["start_hex"] == "0x1000"
-    assert artifacts[0]["size"] == 4096
+    assert artifacts["total"] == 1
+    assert artifacts["offset"] == 0
+    assert len(artifacts["items"]) == 1
+    assert artifacts["items"][0]["id"] == artifact_id
+    assert artifacts["items"][0]["start_hex"] == "0x1000"
+    assert artifacts["items"][0]["size"] == 4096
+
+    # Pagination: total stays accurate while an out-of-range offset returns no items.
+    paged = api_client.get(
+        f"/api/memory-dumps/{dump_id}/region-artifacts",
+        params={"offset": 1, "limit": 10},
+    ).json()
+    assert paged["total"] == 1
+    assert paged["offset"] == 1
+    assert paged["items"] == []
 
     page = api_client.get(
         f"/api/memory-dumps/{dump_id}/region-artifacts/{artifact_id}/hex",
@@ -1001,7 +1012,7 @@ def test_memory_region_inspection_artifact_hex_disassembly_and_download(
     )
     assert download.status_code == 200
     assert download.content == code
-    assert download.headers["x-content-sha256"] == artifacts[0]["content_sha256"]
+    assert download.headers["x-content-sha256"] == artifacts["items"][0]["content_sha256"]
 
     invalid = api_client.post(
         f"/api/memory-dumps/{dump_id}/regions/inspect",

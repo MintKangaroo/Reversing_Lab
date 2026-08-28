@@ -180,7 +180,8 @@ export const api = {
         acknowledged: true,
       }),
     }),
-  memoryRegionArtifacts: (id) => request(`/memory-dumps/${id}/region-artifacts`),
+  memoryRegionArtifacts: (id, offset = 0, limit = 200) =>
+    request(`/memory-dumps/${id}/region-artifacts?offset=${offset}&limit=${limit}`),
   memoryRegionHex: (id, artifactId, offset = 0, length = 256) =>
     request(`/memory-dumps/${id}/region-artifacts/${artifactId}/hex?offset=${offset}&length=${length}`),
   memoryRegionDisassembly: (id, artifactId, offset = 0, count = 200) =>
