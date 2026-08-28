@@ -26,6 +26,13 @@ from ..errors import IntegrationUnavailableError
 from .base import DecompileOptions, DecompiledFunction
 
 
+# Upper bound on the byte range fed to --select-ranges. RetDec follows the function's
+# control flow from the start address and stops at its natural end, so this is only a
+# ceiling: large enough to cover essentially any single function without pulling in a
+# neighbour. A zero-length range decodes nothing ("No instructions were decoded").
+_DECODE_WINDOW = 0x2000
+
+
 class RetDecDecompilerAdapter:
     name = "retdec"
 
@@ -53,7 +60,7 @@ class RetDecDecompilerAdapter:
                 "-o",
                 str(output),
                 "--select-ranges",
-                f"0x{address:x}-0x{address:x}",
+                f"0x{address:x}-0x{address + _DECODE_WINDOW:x}",
                 "--select-decode-only",
                 "--cleanup",
             ]
