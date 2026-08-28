@@ -160,6 +160,22 @@ class Settings(BaseSettings):
     )
     log_level: str = Field(default="INFO", description="Root log level.")
 
+    # --- Rate limiting (opt-in; in-process fixed window) -------------------------
+    rate_limit_enabled: bool = Field(
+        default=False,
+        description="Enforce a per-principal request rate limit. Off by default.",
+    )
+    rate_limit_requests: int = Field(
+        default=120,
+        ge=1,
+        description="Allowed requests per principal within one window.",
+    )
+    rate_limit_window_seconds: float = Field(
+        default=60.0,
+        gt=0,
+        description="Length of the fixed rate-limit window in seconds.",
+    )
+
     # --- Authentication (disabled for backward-compatible local development) -----
     auth_mode: Literal["disabled", "api_key"] = Field(
         default="disabled",

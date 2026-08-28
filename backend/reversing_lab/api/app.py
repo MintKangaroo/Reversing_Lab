@@ -19,6 +19,7 @@ from ..logging_config import configure_logging
 from .audit_log import audit_mutations
 from .auth import authorize_request
 from .errors import register_exception_handlers
+from .rate_limit import enforce_rate_limit
 from .routes import (
     analysis,
     audit,
@@ -62,7 +63,9 @@ def create_app() -> FastAPI:
         version=__version__,
         description="Static analysis of ELF/PE/Mach-O binaries and RE challenges.",
         lifespan=_lifespan,
-        dependencies=[Depends(authorize_request)],
+        # authorize_request runs first and resolves request.state.principal; the rate
+        # limiter (a no-op unless enabled) then keys on that principal.
+        dependencies=[Depends(authorize_request), Depends(enforce_rate_limit)],
     )
 
     app.add_middleware(
