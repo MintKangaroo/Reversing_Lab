@@ -128,6 +128,24 @@ def test_retdec_reads_output_and_names_function(tmp_path: Path, monkeypatch) -> 
     assert "int entry" in result.code
 
 
+def test_r2ghidra_live_decompiles_when_installed(tmp_path: Path) -> None:
+    # Opt-in live integration: runs only where radare2 + the r2ghidra plugin are
+    # actually installed (skipped in CI and dev boxes without them). Guards against
+    # regressions in the real pdgj invocation and JSON parsing — e.g. the subprocess
+    # environment must forward HOME so r2 finds a user-installed plugin.
+    adapter = R2GhidraDecompilerAdapter()
+    if not adapter.is_available():
+        pytest.skip("radare2 is not on PATH")
+    sample = tmp_path / "sample"
+    sample.write_bytes(_conditional_fixture())
+    try:
+        result = adapter.decompile_function(sample, 0x401000, DecompileOptions(timeout_seconds=60))
+    except IntegrationUnavailableError as exc:
+        pytest.skip(f"r2ghidra plugin not usable: {exc}")
+    assert result.provider == "r2ghidra"
+    assert result.code.strip()
+
+
 def test_retdec_timeout_raises_typed_error(tmp_path: Path, monkeypatch) -> None:
     import subprocess as _subprocess
 

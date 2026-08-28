@@ -58,6 +58,13 @@ class R2GhidraDecompilerAdapter:
             str(binary_path.resolve()),
         ]
         environment = {"PATH": os.environ.get("PATH", ""), "LANG": "C.UTF-8"}
+        # radare2 discovers user-installed plugins (the common `r2pm -ci r2ghidra` path)
+        # under $HOME/.local/share/radare2/plugins; without HOME it silently loads none
+        # and `pdg` is unavailable. Pass HOME through when set, like the Ghidra adapter
+        # forwards JAVA_HOME — a tool-required variable, not the full ambient environment.
+        home = os.environ.get("HOME")
+        if home:
+            environment["HOME"] = home
         started = time.monotonic()
         try:
             completed = subprocess.run(
