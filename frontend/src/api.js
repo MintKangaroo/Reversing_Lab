@@ -196,6 +196,8 @@ export const api = {
     return request(`/memory-dumps/${id}/network${query.size ? `?${query}` : ''}`);
   },
   memoryFindings: (id) => request(`/memory-dumps/${id}/findings`),
+  downloadMemoryReport: (id, format = 'json') =>
+    download(`/memory-dumps/${id}/report?format=${format}`, `memory-${id.slice(0, 12)}.${format === 'markdown' ? 'md' : format}`),
   jobs: () => request('/jobs'),
   job: (id) => request(`/jobs/${id}`),
   cancelJob: (id) => request(`/jobs/${id}/cancel`, { method: 'POST' }),
@@ -214,6 +216,8 @@ export const api = {
     return request(`/dynamic-analysis/${id}/events?${query}`);
   },
   dynamicArtifacts: (id) => request(`/dynamic-analysis/${id}/artifacts`),
+  downloadDynamicReport: (id, format = 'json') =>
+    download(`/dynamic-analysis/${id}/report?format=${format}`, `dynamic-${id.slice(0, 12)}.${format === 'markdown' ? 'md' : format}`),
   ctfWorkspaces: () => request('/ctf-workspaces'),
   createCtfWorkspace: (payload) =>
     request('/ctf-workspaces', {

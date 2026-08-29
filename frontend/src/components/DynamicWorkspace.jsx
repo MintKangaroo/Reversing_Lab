@@ -64,6 +64,15 @@ export function DynamicWorkspace({ sample }) {
     }
   }
 
+  async function exportReport(format) {
+    setError(null);
+    try {
+      await api.downloadDynamicReport(run.id, format);
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
+
   const shown = (events?.items || []).filter((item) => {
     if (!filter) return true;
     return JSON.stringify(item).toLowerCase().includes(filter.toLowerCase());
@@ -132,7 +141,16 @@ export function DynamicWorkspace({ sample }) {
             <section className="timeline-panel">
               <div className="timeline-toolbar">
                 <div><span className="eyebrow">PROVIDER EVENTS</span><h2>Dynamic timeline</h2></div>
-                <input className="text" type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter process, API, file, registry, network…" />
+                <div className="timeline-toolbar-actions">
+                  <input className="text" type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter process, API, file, registry, network…" />
+                  <div className="report-actions">
+                    {['json', 'markdown', 'html'].map((format) => (
+                      <button className="btn secondary" type="button" key={format} onClick={() => exportReport(format)}>
+                        Export {format.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               {events.warnings.map((warning) => <div className="decompiler-notice" key={warning}><strong>Provider note</strong><span>{warning}</span></div>)}
               <div className="timeline-list">
