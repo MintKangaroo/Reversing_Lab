@@ -60,10 +60,12 @@ hex display fields for JavaScript clients.
 | GET | `/memory-dumps/{id}/region-artifacts` |
 | GET | `/memory-dumps/{id}/region-artifacts/{artifact_id}` |
 | GET | `/memory-dumps/{id}/region-artifacts/{artifact_id}/hex`, `/disassembly`, `/download` |
+| GET | `/memory-dumps/{id}/report?format=json|markdown|html` |
 | GET | `/dynamic-analysis/readiness` |
 | POST | `/dynamic-analysis` |
 | GET / POST | `/dynamic-analysis/{run_id}`, `/cancel` |
 | GET | `/dynamic-analysis/{run_id}/events`, `/artifacts` |
+| GET | `/dynamic-analysis/{run_id}/report?format=json|markdown|html` |
 
 `/memory-dumps/{id}/network` supports bounded `offset`/`limit` pagination and exact
 `pid`, case-insensitive `protocol`/`state`, and bounded `keyword` filters. Filtering
@@ -84,6 +86,15 @@ and literal `acknowledged=true`. It returns a `memory-region-inspection` job. On
 completion, `result_ref` is the owner-scoped artifact ID. Hex pages are capped at 4 KiB
 and disassembly at 2,000 requested instructions in addition to the global instruction
 cap. The raw download name is server generated from the content hash.
+
+Both `/memory-dumps/{id}/report` and `/dynamic-analysis/{run_id}/report` export one
+bounded, evidence-linked report in JSON, Markdown, or escaped HTML. They read only the
+already normalized result artifact — no sample is executed and no analysis is re-run —
+and return `409` until the underlying analysis or run has completed. The memory report
+surfaces findings, processes, suspicious regions, network artifacts, and recovered IOCs;
+the dynamic report surfaces the severity-ordered behavioral timeline, event and severity
+counts, dropped artifacts, and unobserved behavior classes. Both carry explicit
+limitations and require analyst validation.
 
 ## CTF, tools, and capabilities
 
