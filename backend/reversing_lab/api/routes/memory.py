@@ -20,6 +20,11 @@ from ...memory import (
     detect_dump_format,
     disassemble_region,
 )
+from ...reporting import (
+    build_memory_report,
+    render_memory_html,
+    render_memory_markdown,
+)
 from ..dependencies import get_job_repository, get_memory_dump_repository
 from ..schemas import (
     JobSchema,
@@ -159,6 +164,41 @@ def memory_analysis_summary(
         finding_count=len(payload.get("findings", [])),
         unavailable=payload.get("unavailable", []),
         warnings=payload.get("warnings", []),
+    )
+
+
+@router.get("/{dump_id}/report")
+def export_memory_report(
+    dump_id: str,
+    format: str = Query(default="json", pattern="^(json|markdown|html)$"),
+    repository: MemoryDumpRepository = Depends(get_memory_dump_repository),
+) -> Response:
+    """Export one bounded report for a completed memory analysis."""
+    dump = repository.get(dump_id)
+    report = build_memory_report(
+        dump_id=dump.id,
+        filename=dump.filename,
+        created_at=dump.created_at,
+        result=_result(dump),
+    )
+    if format == "markdown":
+        content = render_memory_markdown(report)
+        media_type = "text/markdown; charset=utf-8"
+        suffix = "md"
+    elif format == "html":
+        content = render_memory_html(report)
+        media_type = "text/html; charset=utf-8"
+        suffix = "html"
+    else:
+        content = json.dumps(report, indent=2, ensure_ascii=False)
+        media_type = "application/json"
+        suffix = "json"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="memory-{dump.id[:12]}.{suffix}"'
+        },
     )
 
 

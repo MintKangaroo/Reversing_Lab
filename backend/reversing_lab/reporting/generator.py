@@ -371,17 +371,17 @@ def render_markdown(report: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
-def render_html(report: dict[str, object]) -> str:
-    """Render a standalone escaped HTML report."""
-    markdown = render_markdown(report)
+def html_document(*, subject: str, notice: str, markdown: str) -> str:
+    """Wrap a rendered Markdown report in a standalone, fully escaped HTML page."""
     escaped = html.escape(markdown)
-    filename = html.escape(str(report["sample_metadata"]["filename"]))
+    safe_subject = html.escape(subject)
+    safe_notice = html.escape(notice)
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reversing Lab Report — {filename}</title>
+<title>Reversing Lab Report — {safe_subject}</title>
 <style>
 :root {{ color-scheme: dark; font-family: Inter, system-ui, sans-serif; }}
 body {{ max-width: 1100px; margin: 0 auto; padding: 36px; color: #d8dee9; background: #10141b; }}
@@ -391,8 +391,17 @@ pre {{ padding: 20px; overflow: auto; border: 1px solid #303849; border-radius: 
 </style>
 </head>
 <body>
-<header><h1>Reversing Lab Analysis Report</h1><p>{filename}</p>
-<p class="notice">Static, evidence-linked output. Inferences require analyst validation.</p></header>
+<header><h1>Reversing Lab Analysis Report</h1><p>{safe_subject}</p>
+<p class="notice">{safe_notice}</p></header>
 <pre>{escaped}</pre>
 </body>
 </html>"""
+
+
+def render_html(report: dict[str, object]) -> str:
+    """Render a standalone escaped HTML report."""
+    return html_document(
+        subject=str(report["sample_metadata"]["filename"]),
+        notice="Static, evidence-linked output. Inferences require analyst validation.",
+        markdown=render_markdown(report),
+    )

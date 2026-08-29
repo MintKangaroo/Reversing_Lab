@@ -8,12 +8,18 @@ from dataclasses import asdict
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from ...config import get_settings
 from ...database import BinaryRepository, DynamicRunRepository, JobRepository
 from ...database.session import get_session_factory
 from ...dynamic import SandboxPolicy, get_sandbox_provider
 from ...jobs import cancel_job, submit_job
+from ...reporting import (
+    build_dynamic_report,
+    render_dynamic_html,
+    render_dynamic_markdown,
+)
 from ..dependencies import (
     get_binary_repository,
     get_dynamic_run_repository,
@@ -200,6 +206,42 @@ def dynamic_events(
         limit=limit,
         unavailable_events=payload["unavailable_events"],
         warnings=payload["warnings"],
+    )
+
+
+@router.get("/{run_id}/report")
+def export_dynamic_report(
+    run_id: str,
+    format: str = Query(default="json", pattern="^(json|markdown|html)$"),
+    runs: DynamicRunRepository = Depends(get_dynamic_run_repository),
+) -> Response:
+    """Export one bounded behavioral report for a completed dynamic run."""
+    run = runs.get(run_id)
+    report = build_dynamic_report(
+        run_id=run.id,
+        job_id=run.job_id,
+        binary_sha256=run.binary_sha256,
+        created_at=run.created_at,
+        result=_result(run),
+    )
+    if format == "markdown":
+        content = render_dynamic_markdown(report)
+        media_type = "text/markdown; charset=utf-8"
+        suffix = "md"
+    elif format == "html":
+        content = render_dynamic_html(report)
+        media_type = "text/html; charset=utf-8"
+        suffix = "html"
+    else:
+        content = json.dumps(report, indent=2, ensure_ascii=False)
+        media_type = "application/json"
+        suffix = "json"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="dynamic-{run.id[:12]}.{suffix}"'
+        },
     )
 
 
