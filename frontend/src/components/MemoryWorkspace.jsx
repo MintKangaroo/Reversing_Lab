@@ -122,6 +122,15 @@ export function MemoryWorkspace() {
     }
   }
 
+  async function exportReport(format) {
+    setError(null);
+    try {
+      await api.downloadMemoryReport(dump.id, format);
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
+
   async function applyNetworkFilters(event) {
     event.preventDefault();
     setNetworkBusy(true);
@@ -220,6 +229,16 @@ export function MemoryWorkspace() {
           {job && !summary && !['failed', 'cancelled'].includes(job.state) && <Loading label="Memory analysis job is running…" />}
           {summary && (
             <div className="memory-results">
+              <div className="memory-report-bar">
+                <div><span className="eyebrow">EVIDENCE-LINKED EXPORT</span><h2>Analysis report</h2></div>
+                <div className="report-actions">
+                  {['json', 'markdown', 'html'].map((format) => (
+                    <button className="btn secondary" type="button" key={format} onClick={() => exportReport(format)}>
+                      Export {format.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="result-tabs">
                 {['overview', 'processes', 'threads', 'modules', 'handles', 'regions', 'network', 'findings'].map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item} {item === 'processes' ? `(${summary.process_count})` : item === 'threads' ? `(${summary.thread_count})` : item === 'modules' ? `(${summary.module_count})` : item === 'handles' ? `(${summary.handle_count})` : item === 'regions' ? `(${summary.region_count})` : item === 'network' ? `(${summary.network_count})` : item === 'findings' ? `(${summary.finding_count})` : ''}</button>)}
               </div>

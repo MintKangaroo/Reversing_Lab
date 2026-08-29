@@ -173,4 +173,36 @@ describe('API client', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:audit-export');
     click.mockRestore();
   });
+
+  it('downloads a dynamic run report with a Markdown extension', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({ body: '# report', type: 'text/markdown' }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:dyn') });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+
+    await api.downloadDynamicReport('run-123456789abc', 'markdown');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/dynamic-analysis/run-123456789abc/report?format=markdown',
+      {},
+    );
+    expect(click).toHaveBeenCalledOnce();
+    click.mockRestore();
+  });
+
+  it('downloads a memory analysis report as HTML', async () => {
+    global.fetch = vi.fn().mockResolvedValue(response({ body: '<!doctype html>', type: 'text/html' }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn().mockReturnValue('blob:mem') });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+
+    await api.downloadMemoryReport('dump-abcdef012345', 'html');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      '/api/memory-dumps/dump-abcdef012345/report?format=html',
+      {},
+    );
+    expect(click).toHaveBeenCalledOnce();
+    click.mockRestore();
+  });
 });

@@ -22,6 +22,7 @@ vi.mock('../api.js', () => ({
     downloadMemoryRegionArtifact: vi.fn(),
     memoryNetwork: vi.fn(),
     memoryFindings: vi.fn(),
+    downloadMemoryReport: vi.fn(),
   },
   hex: (value) => `0x${Number(value).toString(16)}`,
 }));
@@ -223,4 +224,17 @@ it('loads normalized Volatility modules, regions, warnings, and evidence', async
   fireEvent.click(screen.getByRole('button', { name: 'findings (1)' }));
   fireEvent.click(screen.getByText('Evidence (1)'));
   await waitFor(() => expect(screen.getByText(/PID 44 at 0x1000/)).toBeVisible());
+});
+
+it('exports the completed memory analysis as a report', async () => {
+  const { container } = render(<MemoryWorkspace />);
+  fireEvent.change(container.querySelector('input[type="file"]'), {
+    target: { files: [new File(['PAGEDUMP'], 'authorized.dmp')] },
+  });
+  expect(await screen.findByText('authorized.dmp')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Start analysis' }));
+
+  const markdown = await screen.findByRole('button', { name: 'Export MARKDOWN' }, { timeout: 2000 });
+  fireEvent.click(markdown);
+  await waitFor(() => expect(api.downloadMemoryReport).toHaveBeenCalledWith('dump-1', 'markdown'));
 });

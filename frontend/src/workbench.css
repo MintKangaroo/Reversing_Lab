@@ -520,6 +520,8 @@ body.is-resizing { user-select: none; cursor: col-resize; }
 .job-progress > div:first-child { display: flex; justify-content: space-between; margin-bottom: 8px; color: var(--text-muted); font-size: 10px; }
 .job-progress strong { color: var(--text); }
 .memory-results { margin-top: 12px; border: 1px solid var(--border-soft); border-radius: 5px; overflow: hidden; background: var(--surface-1); }
+.memory-report-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 11px 13px; border-bottom: 1px solid var(--border-soft); }
+.memory-report-bar h2 { margin: 3px 0 0; font-size: 13px; }
 .result-tabs { display: flex; border-bottom: 1px solid var(--border-soft); }
 .result-tabs button { padding: 8px 11px; border: 0; border-bottom: 1px solid transparent; background: transparent; color: var(--text-faint); cursor: pointer; font-size: 9px; text-transform: uppercase; }
 .result-tabs button.active { border-bottom-color: var(--accent); color: var(--text); }
@@ -617,6 +619,7 @@ body.is-resizing { user-select: none; cursor: col-resize; }
 .timeline-panel { margin-top: 11px; padding: 13px; border: 1px solid var(--border-soft); border-radius: 5px; background: var(--surface-1); }
 .timeline-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 10px; }
 .timeline-toolbar input { width: min(390px, 50%); }
+.timeline-toolbar-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
 .timeline-list { display: flex; flex-direction: column; }
 .timeline-list article { display: grid; grid-template-columns: 180px 110px minmax(180px, 1fr) 65px; gap: 10px; align-items: start; padding: 9px 5px; border-top: 1px solid var(--border-soft); }
 .timeline-list time { color: var(--text-faint); font: 8px var(--mono); }
