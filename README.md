@@ -238,6 +238,7 @@ Alembic drift와 whitespace를 검사합니다.
 - [API](docs/API.md) · [Architecture](docs/ARCHITECTURE.md) · [Development](docs/DEVELOPMENT.md)
 - [Audit logging](docs/AUDIT_LOGGING.md)
 - [Security](docs/SECURITY.md) · [Threat model](docs/THREAT_MODEL.md) · [Authentication](docs/AUTHENTICATION.md)
+- [Operations](docs/OPERATIONS.md) (TLS deployment · PostgreSQL backup/restore)
 - [Decompilation](docs/DECOMPILATION.md) · [Memory](docs/MEMORY_ANALYSIS.md) · [Dynamic](docs/DYNAMIC_ANALYSIS.md)
 - [Roadmap](docs/ROADMAP.md) · [Implementation record](docs/IMPLEMENTATION_PLAN.md)
 

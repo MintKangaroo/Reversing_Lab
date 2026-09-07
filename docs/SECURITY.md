@@ -6,7 +6,8 @@ Reversing Lab assumes every upload is hostile. Run it on a dedicated analysis ne
 with least-privilege filesystem access. Optional digest-backed bearer authentication
 is available but disabled by default for local compatibility. Any shared deployment
 must enable it behind TLS and proxy rate limiting; auth-disabled mode must not be
-exposed directly to the internet.
+exposed directly to the internet. See [OPERATIONS.md](OPERATIONS.md) for the TLS
+reverse-proxy topology and PostgreSQL backup/restore runbook.
 
 The built-in roles are deliberately coarse. Viewers are HTTP read-only, analysts may
 mutate state, and admins may audit all resources. Non-admin access is enforced through
