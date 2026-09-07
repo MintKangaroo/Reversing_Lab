@@ -35,8 +35,9 @@
 
 ## Near term
 
-1. PostgreSQL backup/restore rehearsal, TLS deployment guide, concurrency/load testing,
-   and production observability.
+1. concurrency/load testing and production observability (TLS deployment guide and
+   PostgreSQL backup/restore rehearsal now documented in
+   [OPERATIONS.md](OPERATIONS.md)).
 2. OIDC/short-lived credentials, centralized revocation,
    and a managed provider that anchors exports in signed/WORM-backed storage with an
    archival policy.
