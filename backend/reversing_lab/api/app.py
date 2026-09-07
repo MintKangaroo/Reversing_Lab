@@ -19,6 +19,7 @@ from ..logging_config import configure_logging
 from .audit_log import audit_mutations
 from .auth import authorize_request
 from .errors import register_exception_handlers
+from .observability import correlation_middleware
 from .rate_limit import enforce_rate_limit
 from .routes import (
     analysis,
@@ -46,7 +47,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, settings.log_format)
     init_db()
     logger.info("Reversing Lab API v%s started.", __version__)
     yield
@@ -56,7 +57,7 @@ async def _lifespan(_: FastAPI):
 def create_app() -> FastAPI:
     """Build and configure the FastAPI application."""
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, settings.log_format)
 
     app = FastAPI(
         title="Reversing Lab API",
@@ -75,7 +76,10 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
+    # audit runs inside correlation; correlation is registered last so it wraps
+    # outermost and owns the request id both layers (and the logs) share.
     app.middleware("http")(audit_mutations)
+    app.middleware("http")(correlation_middleware)
 
     register_exception_handlers(app)
 

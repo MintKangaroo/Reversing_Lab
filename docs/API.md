@@ -18,9 +18,18 @@ CTF state, and reports use or inherit the principal owner scope. Cross-owner ide
 return 404; admins retain global audit access. Configuration and residual identity
 limitations are documented in [AUTHENTICATION.md](AUTHENTICATION.md).
 
-Every response includes a server-generated `X-Request-ID`. POST/PATCH/PUT/DELETE
-requests create an audit event after handling. Audit metadata excludes the body,
-authorization header, query string, and decoder input.
+Every response includes an `X-Request-ID`; the server reuses a safe inbound one or
+mints it, and the same id appears in application logs and the mutation's audit event.
+POST/PATCH/PUT/DELETE requests create an audit event after handling. Audit metadata
+excludes the body, authorization header, query string, and decoder input.
+See [OBSERVABILITY.md](OBSERVABILITY.md).
+
+## Health
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Liveness; public even when auth is enabled. |
+| GET | `/health/ready` | Readiness; `200` when the database answers, else `503`. |
 
 ## Samples and static analysis
 

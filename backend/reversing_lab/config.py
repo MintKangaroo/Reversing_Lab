@@ -159,6 +159,14 @@ class Settings(BaseSettings):
         description="Allowed CORS origins for the front-end dev server.",
     )
     log_level: str = Field(default="INFO", description="Root log level.")
+    log_format: Literal["text", "json"] = Field(
+        default="text",
+        description="Log line format. 'json' emits one structured object per record.",
+    )
+    access_log: bool = Field(
+        default=True,
+        description="Emit one structured access-log line per HTTP request.",
+    )
 
     # --- Rate limiting (opt-in; in-process fixed window) -------------------------
     rate_limit_enabled: bool = Field(
