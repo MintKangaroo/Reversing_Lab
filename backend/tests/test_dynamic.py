@@ -104,3 +104,60 @@ def test_dynamic_request_requires_explicit_ack(api_client) -> None:
         json={"binary_sha256": sha256, "acknowledged": False},
     )
     assert response.status_code == 422
+
+
+def _ready_mock():
+    class ReadyMock(MockSandboxProvider):
+        def readiness(self, *, sample_path_validated, user_acknowledged):
+            reasons = () if sample_path_validated and user_acknowledged else ("not ready",)
+            return SandboxReadiness(
+                provider="mock",
+                provider_configured=True,
+                isolated_worker_available=True,
+                resource_limits_configured=True,
+                timeout_configured=True,
+                network_policy_configured=True,
+                writable_workspace_configured=True,
+                sample_path_validated=sample_path_validated,
+                user_acknowledged=user_acknowledged,
+                ready=not reasons,
+                reasons=reasons,
+                warning="Mock provider never executes samples.",
+            )
+
+    return ReadyMock()
+
+
+def test_runs_are_listed_for_a_sample_newest_first(api_client, monkeypatch) -> None:
+    from reversing_lab.api.routes import dynamic
+
+    monkeypatch.setattr(dynamic, "get_sandbox_provider", _ready_mock)
+    sha256 = _upload(api_client)
+
+    empty = api_client.get(f"/api/dynamic-analysis?binary_sha256={sha256}")
+    assert empty.status_code == 200
+    assert empty.json() == []
+
+    first = api_client.post(
+        "/api/dynamic-analysis", json={"binary_sha256": sha256, "acknowledged": True}
+    ).json()["id"]
+    _wait(api_client, first)
+    second = api_client.post(
+        "/api/dynamic-analysis", json={"binary_sha256": sha256, "acknowledged": True}
+    ).json()["id"]
+    _wait(api_client, second)
+
+    listed = api_client.get(f"/api/dynamic-analysis?binary_sha256={sha256}")
+    assert listed.status_code == 200, listed.text
+    runs = listed.json()
+    assert [run["id"] for run in runs] == [second, first]
+    assert all(run["binary_sha256"] == sha256 for run in runs)
+    assert runs[0]["result_available"] is True
+
+
+def test_run_listing_requires_a_valid_sha(api_client) -> None:
+    assert api_client.get("/api/dynamic-analysis").status_code == 422
+    assert (
+        api_client.get("/api/dynamic-analysis?binary_sha256=not-a-hash").status_code
+        == 422
+    )

@@ -209,6 +209,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ binary_sha256: sha, acknowledged: true }),
     }),
+  dynamicRuns: (sha) => request(`/dynamic-analysis?binary_sha256=${sha}`),
   dynamicRun: (id) => request(`/dynamic-analysis/${id}`),
   cancelDynamicRun: (id) => request(`/dynamic-analysis/${id}/cancel`, { method: 'POST' }),
   dynamicEvents: (id, params = {}) => {

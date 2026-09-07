@@ -40,7 +40,9 @@
 2. OIDC/short-lived credentials, centralized revocation,
    and a managed provider that anchors exports in signed/WORM-backed storage with an
    archival policy.
-3. explicit report association / export for memory and dynamic runs.
+3. explicit report association for dynamic runs now lands in the Reports workspace
+   (a sample's runs are listed with per-run report export); memory-dump reports export
+   from the Memory workspace since dumps are standalone uploads, not binary-scoped.
 4. improved ARM/AArch64/MIPS CFG recovery (source-line mapping now lands via the
    decompiler adapters).
 

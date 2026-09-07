@@ -63,6 +63,7 @@ hex display fields for JavaScript clients.
 | GET | `/memory-dumps/{id}/report?format=json|markdown|html` |
 | GET | `/dynamic-analysis/readiness` |
 | POST | `/dynamic-analysis` |
+| GET | `/dynamic-analysis?binary_sha256=...` (a sample's runs, newest first) |
 | GET / POST | `/dynamic-analysis/{run_id}`, `/cancel` |
 | GET | `/dynamic-analysis/{run_id}/events`, `/artifacts` |
 | GET | `/dynamic-analysis/{run_id}/report?format=json|markdown|html` |
