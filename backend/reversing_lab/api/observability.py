@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from fastapi import Request
 
+from .. import metrics
 from ..config import get_settings
 from ..logging_config import request_id_var
 
@@ -59,18 +60,23 @@ async def correlation_middleware(request: Request, call_next):
         response.headers["X-Request-ID"] = request_id
         return response
     finally:
-        duration_ms = round((time.perf_counter() - start) * 1000, 2)
-        if get_settings().access_log:
+        elapsed = time.perf_counter() - start
+        duration_ms = round(elapsed * 1000, 2)
+        settings = get_settings()
+        route = _route_template(request)
+        if settings.metrics_enabled:
+            metrics.record_request(request.method, route, status_code, elapsed)
+        if settings.access_log:
             principal = getattr(request.state, "principal", None)
             access_logger.info(
                 "%s %s -> %s (%sms)",
                 request.method,
-                _route_template(request),
+                route,
                 status_code,
                 duration_ms,
                 extra={
                     "method": request.method,
-                    "route": _route_template(request),
+                    "route": route,
                     "status_code": status_code,
                     "duration_ms": duration_ms,
                     "principal": getattr(principal, "id", "anonymous"),

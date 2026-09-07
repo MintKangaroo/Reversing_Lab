@@ -12,7 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from ..config import get_settings
 
 _bearer = HTTPBearer(auto_error=False, scheme_name="ReversingLabApiKey")
-_PUBLIC_PATHS = {"/api/health"}
+_PUBLIC_PATHS = {"/api/health", "/api/health/ready", "/api/metrics"}
 _READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 
 

@@ -38,8 +38,9 @@
 1. production observability landed its first slice — request correlation
    (`X-Request-ID` reused/minted, threaded through logs and audit rows), structured
    text/JSON logging with a per-request access line, and a database-backed
-   `/health/ready` readiness probe ([OBSERVABILITY.md](OBSERVABILITY.md)). Still open:
-   `/metrics` export and a load-testing harness. (TLS deployment guide and PostgreSQL
+   `/health/ready` readiness probe, and a Prometheus `/metrics` endpoint (request
+   counts + latency by route/status, job gauges) ([OBSERVABILITY.md](OBSERVABILITY.md)).
+   Still open: a load-testing harness and baseline. (TLS deployment guide and PostgreSQL
    backup/restore rehearsal are documented in [OPERATIONS.md](OPERATIONS.md).)
 2. OIDC/short-lived credentials, centralized revocation,
    and a managed provider that anchors exports in signed/WORM-backed storage with an
