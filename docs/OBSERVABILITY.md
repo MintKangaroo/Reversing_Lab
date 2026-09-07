@@ -1,8 +1,8 @@
 # Observability
 
-How the API reports on itself: request correlation, structured logs, and health
-probes. This is the first slice of the observability roadmap item; metrics export and
-a load-testing harness are tracked as follow-ups at the end of this document.
+How the API reports on itself: request correlation, structured logs, health probes,
+and Prometheus metrics. A load-testing harness is tracked as a follow-up at the end of
+this document.
 
 ## Request correlation
 
@@ -81,11 +81,37 @@ readinessProbe:
 `/api/health/ready` opens a short-lived connection on each call; it is cheap but not
 free, so keep the probe period at the orchestrator default (10s+) rather than sub-second.
 
+## Metrics
+
+`GET /api/metrics` renders Prometheus text exposition (version 0.0.4), recorded by the
+same middleware that emits the access log. Toggle with `RLAB_METRICS_ENABLED` (default
+`true`); when disabled the endpoint returns `404` and nothing is recorded.
+
+| Series | Type | Labels | Meaning |
+| --- | --- | --- | --- |
+| `rlab_http_requests_total` | counter | `method`, `route`, `status` | Requests handled. |
+| `rlab_http_request_duration_seconds` | histogram | `method`, `route` | Latency (default Prometheus buckets), with `_bucket`/`_sum`/`_count`. |
+| `rlab_active_jobs` | gauge | — | In-process analysis jobs queued or running. |
+| `rlab_max_concurrent_jobs` | gauge | — | Configured job concurrency limit. |
+
+`route` is the **templated** path, so cardinality stays bounded. The registry is
+**in-process** — like the rate limiter, it is a real single-worker guardrail, not a
+shared store: scrape each worker separately, or aggregate at the proxy. Metrics carry no
+sample content or identifiers, but they do reveal traffic shape, so keep the scrape
+endpoint on a trusted network (it is unauthenticated, like the health probes).
+
+A minimal scrape config:
+
+```yaml
+scrape_configs:
+  - job_name: reversing-lab
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ["reversing-lab.internal:8000"]
+```
+
 ## Follow-ups (not yet implemented)
 
-- **Metrics export** — a Prometheus/OpenMetrics `/metrics` endpoint (request counts and
-  latency by route/status, job gauges). The access log already carries the raw
-  per-request timing this would aggregate.
 - **Load testing** — a bounded, safe load-generation harness plus a documented baseline,
   to size `RLAB_MAX_CONCURRENT_JOBS`, worker counts, and the rate limiter under
-  concurrency.
+  concurrency. The metrics above provide the latency/throughput signal to measure it by.

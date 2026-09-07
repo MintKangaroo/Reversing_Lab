@@ -167,6 +167,10 @@ class Settings(BaseSettings):
         default=True,
         description="Emit one structured access-log line per HTTP request.",
     )
+    metrics_enabled: bool = Field(
+        default=True,
+        description="Expose Prometheus metrics at /api/metrics and record request stats.",
+    )
 
     # --- Rate limiting (opt-in; in-process fixed window) -------------------------
     rate_limit_enabled: bool = Field(

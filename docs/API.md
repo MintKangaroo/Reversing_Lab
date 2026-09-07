@@ -30,6 +30,7 @@ See [OBSERVABILITY.md](OBSERVABILITY.md).
 |---|---|---|
 | GET | `/health` | Liveness; public even when auth is enabled. |
 | GET | `/health/ready` | Readiness; `200` when the database answers, else `503`. |
+| GET | `/metrics` | Prometheus text metrics; public, `404` when disabled. See [OBSERVABILITY.md](OBSERVABILITY.md). |
 
 ## Samples and static analysis
 

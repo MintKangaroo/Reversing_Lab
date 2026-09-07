@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import text
 
-from ... import __version__
+from ... import __version__, metrics
 from ...config import get_settings
 from ...database.session import get_engine
+from ...jobs import active_job_count
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["meta"])
@@ -43,3 +44,23 @@ def readiness() -> JSONResponse:
             content={"status": "not_ready", "database": "unreachable"},
         )
     return JSONResponse(content={"status": "ready", "database": "ok"})
+
+
+@router.get("/metrics")
+def prometheus_metrics() -> PlainTextResponse:
+    """Prometheus exposition of request counts, latency, and job gauges.
+
+    In-process (per worker); restrict scrape access at the network layer. Returns 404
+    when metrics are disabled (``RLAB_METRICS_ENABLED=false``).
+    """
+    settings = get_settings()
+    if not settings.metrics_enabled:
+        raise HTTPException(status_code=404, detail="Metrics are disabled.")
+    body = metrics.render(
+        active_jobs=active_job_count(),
+        max_jobs=settings.max_concurrent_jobs,
+    )
+    return PlainTextResponse(
+        content=body,
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )

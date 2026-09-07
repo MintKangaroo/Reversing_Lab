@@ -126,3 +126,9 @@ def cancel_job(job_id: str) -> None:
         future = _futures.get(job_id)
     if future is not None and record.state == "cancelled":
         future.cancel()
+
+
+def active_job_count() -> int:
+    """In-process jobs that are submitted and not yet finished (queued or running)."""
+    with _lock:
+        return sum(1 for future in _futures.values() if not future.done())
