@@ -12,7 +12,9 @@ from reversing_lab.database.models import Base
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # disable_existing_loggers defaults to True, which would silence the running
+    # application's loggers (e.g. reversing_lab.access) when migrations run in-process.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 if not config.get_main_option("sqlalchemy.url").strip():
     config.set_main_option("sqlalchemy.url", get_settings().database_url)

@@ -86,13 +86,12 @@ def _persist_event(
 
 
 async def audit_mutations(request: Request, call_next):
-    """Attach a server request ID and persist mutation metadata after handling."""
-    request_id = str(uuid4())
+    """Persist mutation metadata under the request's shared correlation id."""
+    request_id = getattr(request.state, "request_id", None) or str(uuid4())
     status_code = 500
     try:
         response = await call_next(request)
         status_code = response.status_code
-        response.headers["X-Request-ID"] = request_id
         return response
     finally:
         if request.method in _MUTATION_METHODS:
