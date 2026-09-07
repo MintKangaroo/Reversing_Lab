@@ -49,8 +49,15 @@
 3. explicit report association for dynamic runs now lands in the Reports workspace
    (a sample's runs are listed with per-run report export); memory-dump reports export
    from the Memory workspace since dumps are standalone uploads, not binary-scoped.
-4. improved ARM/AArch64/MIPS CFG recovery (source-line mapping now lands via the
-   decompiler adapters).
+4. ARM/AArch64/MIPS control-flow recovery now classifies branches
+   architecture-neutrally: direct targets are read in each architecture's operand
+   syntax (`#0x..`, last-operand for `cbz`/`beq`), calls that Capstone also tags as
+   jumps (`bl`/`blr`) no longer produce branch edges, and return idioms outside the
+   `return` group (`bx lr`, `jr $ra`) and MIPS `jal`/`bal` calls are recognized by
+   mnemonic (source-line mapping already lands via the decompiler adapters). Remaining:
+   apply the same normalization to the function-inventory/call-graph pass
+   (`analysis/functions.py` still parses the first operand and misses MIPS `jal`
+   targets), and precise MIPS branch-delay-slot attribution.
 
 ## Medium term
 

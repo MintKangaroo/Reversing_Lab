@@ -8,9 +8,15 @@ The classic three-step basic-block algorithm:
 3. Slice the instruction stream at leaders into basic blocks and connect them with
    fall-through and branch edges.
 
-Only direct branches (with an immediate target the disassembler prints as ``0x...``)
-produce edges; indirect branches (``jmp rax``) have no statically known target and are
-recorded as block terminators without an outgoing edge.
+Only direct branches (with an immediate target) produce edges; indirect branches
+(``jmp rax``, ``br x0``, ``jr $t9``) have no statically known target and are recorded as
+block terminators without an outgoing edge.
+
+Control-flow classification is architecture-neutral: it reads Capstone instruction
+*groups* (``jump`` / ``call`` / ``return``) rather than x86 mnemonics, and normalizes the
+per-architecture operand syntax when reading a direct target. A few return/call idioms
+that Capstone does not put in a group are recognized by mnemonic: ARM ``bx lr`` and
+MIPS ``jr $ra`` (returns), and MIPS ``jal`` / ``bal`` / ``jalr`` (calls).
 """
 
 from __future__ import annotations
@@ -21,8 +27,23 @@ from ..config import get_settings
 from ..parser.models import BinaryInfo
 from .disassembler import Instruction, _resolve_engine, _code_section
 
-# Unconditional branch mnemonics across the architectures we support.
-_UNCONDITIONAL = {"jmp", "b", "bal"}
+# Bare unconditional direct-branch mnemonics (x86 jmp; ARM/ARM64 b; MIPS j/b). A
+# conditional branch is a distinct mnemonic (je, beq, b.eq, cbz, bne, ...), so it is
+# never in this set and always falls through.
+_UNCONDITIONAL = {"jmp", "b", "j"}
+
+# Calls Capstone (MIPS) does not tag with the ``call`` group; matched by mnemonic.
+_MIPS_CALL_MNEMONICS = {"jal", "bal", "jalr"}
+
+# Return idioms Capstone does not tag with the ``return`` group: ARM ``bx lr`` /
+# ``bxj lr`` and MIPS ``jr $ra`` (``$31``).
+_ARM_RETURN_MNEMONICS = {"bx", "bxj"}
+_MIPS_RETURN_REGISTERS = {"$ra", "$31"}
+
+
+def _last_operand(op_str: str) -> str:
+    """The final comma-separated operand — where ARM/ARM64/MIPS print a branch target."""
+    return op_str.rsplit(",", 1)[-1].strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,8 +85,12 @@ class ControlFlowGraph:
 
 
 def _branch_target(insn: Instruction) -> int | None:
-    """Return the immediate target of a direct branch, or ``None`` if not static."""
-    operand = insn.op_str.strip()
+    """Return the immediate target of a direct branch, or ``None`` if not static.
+
+    Normalizes per-architecture syntax: x86 ``0x401000``, ARM/ARM64 ``#0x1010``, and
+    the target as the last operand (ARM64 ``cbz w0, #0x18``; MIPS ``beq $a, $b, 0x24``).
+    """
+    operand = _last_operand(insn.op_str).lstrip("#")
     if operand.startswith("0x"):
         try:
             return int(operand, 16)
@@ -74,12 +99,34 @@ def _branch_target(insn: Instruction) -> int | None:
     return None
 
 
+def _is_call(insn: Instruction) -> bool:
+    return "call" in insn.groups or insn.mnemonic in _MIPS_CALL_MNEMONICS
+
+
 def _is_jump(insn: Instruction) -> bool:
-    return "jump" in insn.groups
+    # Calls (ARM ``bl``/``blr`` are in both the call and jump groups) are not branches.
+    return "jump" in insn.groups and not _is_call(insn)
 
 
 def _is_return(insn: Instruction) -> bool:
-    return "ret" in insn.groups or "return" in insn.groups
+    if "ret" in insn.groups or "return" in insn.groups:
+        return True
+    operand = _last_operand(insn.op_str)
+    if insn.mnemonic in _ARM_RETURN_MNEMONICS and operand == "lr":
+        return True
+    return insn.mnemonic == "jr" and operand in _MIPS_RETURN_REGISTERS
+
+
+def _is_unconditional_jump(insn: Instruction) -> bool:
+    """A branch that never falls through: a bare unconditional or any indirect jump."""
+    return _is_jump(insn) and (
+        insn.mnemonic in _UNCONDITIONAL or _branch_target(insn) is None
+    )
+
+
+def _falls_through(insn: Instruction) -> bool:
+    """A conditional branch continues to the next instruction when not taken."""
+    return _is_jump(insn) and not _is_unconditional_jump(insn)
 
 
 def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> ControlFlowGraph:
@@ -127,9 +174,7 @@ def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> Cont
                 max_forward_target = target
 
         next_address = model.address + model.size
-        terminates = _is_return(model) or (
-            _is_jump(model) and model.mnemonic in _UNCONDITIONAL
-        )
+        terminates = _is_return(model) or _is_unconditional_jump(model)
         if terminates and next_address > max_forward_target:
             break
 
@@ -185,7 +230,7 @@ def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> Cont
             target = _branch_target(last)
             if target is not None and target in leader_to_id:
                 successors.append(leader_to_id[target])
-            if last.mnemonic not in _UNCONDITIONAL:
+            if _falls_through(last):
                 # Conditional branch also falls through to the next block.
                 fall = last.address + last.size
                 if fall in leader_to_id:
@@ -291,11 +336,14 @@ def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> Cont
                     CfgEdge(block.id, None, "indirect", last.address, None)
                 )
             else:
+                conditional = _falls_through(last)
                 for index, target in enumerate(block.successors):
                     kind = (
-                        "unconditional"
-                        if last.mnemonic in _UNCONDITIONAL
-                        else ("conditional" if index == 0 else "fallthrough")
+                        "conditional"
+                        if conditional and index == 0
+                        else "fallthrough"
+                        if conditional
+                        else "unconditional"
                     )
                     typed_edges.append(
                         CfgEdge(
@@ -312,7 +360,7 @@ def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> Cont
                     CfgEdge(block.id, target, "fallthrough", last.address)
                 )
         for instruction in block.instructions:
-            if "call" in instruction.groups:
+            if _is_call(instruction):
                 typed_edges.append(
                     CfgEdge(
                         block.id,
