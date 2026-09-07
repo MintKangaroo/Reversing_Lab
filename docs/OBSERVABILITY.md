@@ -1,8 +1,7 @@
 # Observability
 
 How the API reports on itself: request correlation, structured logs, health probes,
-and Prometheus metrics. A load-testing harness is tracked as a follow-up at the end of
-this document.
+and Prometheus metrics, plus a read-only load-testing harness for sizing.
 
 ## Request correlation
 
@@ -110,8 +109,40 @@ scrape_configs:
       - targets: ["reversing-lab.internal:8000"]
 ```
 
-## Follow-ups (not yet implemented)
+## Load testing
 
-- **Load testing** — a bounded, safe load-generation harness plus a documented baseline,
-  to size `RLAB_MAX_CONCURRENT_JOBS`, worker counts, and the rate limiter under
-  concurrency. The metrics above provide the latency/throughput signal to measure it by.
+A bounded, **read-only** harness lives in [`backend/loadtest/`](../backend/loadtest).
+It issues only GET requests to a single path at a fixed concurrency for a fixed
+duration, then reports throughput, error rate, and latency percentiles. It is a sizing
+tool, not a stress/DoS tool: point it only at a deployment you operate.
+
+```bash
+cd backend
+python -m loadtest --url http://127.0.0.1:8000 --path /api/health \
+    --concurrency 16 --duration 30
+```
+
+```
+requests      : 2256
+errors        : 0 (0.0)
+wall seconds  : 8.033
+throughput    : 280.85 req/s
+latency (ms)  : p50=32.43 p90=128.33 p99=267.27 max=509.39 mean=55.79
+```
+
+The numbers above are one measured run — a single `uvicorn` worker on SQLite over
+loopback, 16 concurrent clients against `/api/health` for 8s. Absolute throughput is
+hardware- and configuration-dependent; treat this as a **method and a shape** (near-zero
+errors, a bounded p99), not a guarantee. Re-measure on your own host to get a baseline.
+
+### Reading the result against the deployment
+
+- The harness's latency percentiles should track
+  `rlab_http_request_duration_seconds` for the same route — cross-check the two.
+- Watch `rlab_active_jobs` against `rlab_max_concurrent_jobs` while load runs: sustained
+  saturation is the signal to raise `RLAB_MAX_CONCURRENT_JOBS` or add workers.
+- A single `uvicorn` worker is one process; the metrics registry and rate limiter are
+  per-worker (see above), so scale with `--workers` and re-measure, aggregating metrics
+  across workers at the scrape layer.
+- To exercise the rate limiter, enable it (`RLAB_RATE_LIMIT_ENABLED`) and confirm the
+  harness starts reporting the throttled responses in its error count.
