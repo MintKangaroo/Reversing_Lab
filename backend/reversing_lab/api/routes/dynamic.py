@@ -153,6 +153,19 @@ def start_dynamic_analysis(
     return _run_schema(run, job)
 
 
+@router.get("", response_model=list[DynamicRunSchema])
+def list_dynamic_analysis(
+    binary_sha256: str = Query(pattern="^[0-9a-f]{64}$"),
+    runs: DynamicRunRepository = Depends(get_dynamic_run_repository),
+    jobs: JobRepository = Depends(get_job_repository),
+) -> list[DynamicRunSchema]:
+    """List a sample's dynamic runs, newest first, so their reports stay reachable."""
+    return [
+        _run_schema(run, jobs.get(run.job_id))
+        for run in runs.list_for_binary(binary_sha256)
+    ]
+
+
 @router.get("/{run_id}", response_model=DynamicRunSchema)
 def get_dynamic_analysis(
     run_id: str,

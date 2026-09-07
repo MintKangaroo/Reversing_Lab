@@ -891,6 +891,18 @@ class DynamicRunRepository(_OwnedRepository):
             raise BinaryNotFoundError(f"No dynamic analysis run with id {run_id!r}.")
         return record
 
+    def list_for_binary(
+        self, binary_sha256: str
+    ) -> list[DynamicAnalysisRunRecord]:
+        """Runs recorded against one sample, newest first, within owner scope."""
+        stmt = (
+            select(DynamicAnalysisRunRecord)
+            .where(DynamicAnalysisRunRecord.binary_sha256 == binary_sha256)
+            .order_by(DynamicAnalysisRunRecord.created_at.desc())
+        )
+        stmt = self._read_scope(stmt, DynamicAnalysisRunRecord)
+        return list(self._session.scalars(stmt))
+
     def set_result(self, run_id: str, data: bytes) -> DynamicAnalysisRunRecord:
         record = self.get(run_id)
         digest = hashlib.sha256(data).hexdigest()

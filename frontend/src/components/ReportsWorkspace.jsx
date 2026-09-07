@@ -4,6 +4,7 @@ import { Empty, ErrorBanner, Loading, ProvenanceBadge } from './common.jsx';
 
 export function ReportsWorkspace({ sample }) {
   const [preview, setPreview] = useState(null);
+  const [runs, setRuns] = useState([]);
   const [error, setError] = useState(null);
 
   async function exportReport(format) {
@@ -15,17 +16,31 @@ export function ReportsWorkspace({ sample }) {
     }
   }
 
+  async function exportRunReport(runId, format) {
+    try {
+      setError(null);
+      await api.downloadDynamicReport(runId, format);
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
+
   useEffect(() => {
     if (!sample) {
       setPreview(null);
+      setRuns([]);
       setError(null);
       return;
     }
     let active = true;
     setPreview(null);
+    setRuns([]);
     api.report(sample.sha256)
       .then((result) => active && setPreview(result))
       .catch((failure) => active && setError(failure.message));
+    api.dynamicRuns(sample.sha256)
+      .then((result) => active && setRuns(result))
+      .catch(() => active && setRuns([]));
     return () => { active = false; };
   }, [sample]);
 
@@ -65,6 +80,35 @@ export function ReportsWorkspace({ sample }) {
               ['Analyst overlays', `${preview.analyst_notes.annotations.length} annotations · ${preview.analyst_notes.bookmarks.length} bookmarks`],
             ].map(([title, detail]) => <article key={title}><h3>{title}</h3><p>{detail}</p></article>)}
           </div>
+          <section className="report-runs">
+            <div className="page-title compact"><h2>Behavioral reports</h2><p>Dynamic runs recorded for this sample. Export each completed run's bounded behavioral report.</p></div>
+            {runs.length === 0 ? (
+              <Empty label="No dynamic runs for this sample" detail="Start an isolated run from the Dynamic workspace; completed runs appear here for export." />
+            ) : (
+              <ul className="run-report-list">
+                {runs.map((run) => {
+                  const completed = run.job.state === 'completed' && run.result_available;
+                  return (
+                    <li key={run.id}>
+                      <div className="run-report-meta">
+                        <code>{run.id.slice(0, 12)}</code>
+                        <span>{run.provider}</span>
+                        <span className={`badge ${completed ? 'on' : 'off'}`}>{run.job.state}</span>
+                        <span className="run-report-time">{new Date(run.created_at).toLocaleString()}</span>
+                      </div>
+                      <div className="report-actions">
+                        {['json', 'markdown', 'html'].map((format) => (
+                          <button className="btn secondary" type="button" key={format} disabled={!completed} onClick={() => exportRunReport(run.id, format)}>
+                            Export {format.toUpperCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
         </>
       )}
     </div>
