@@ -10,8 +10,8 @@ finding, 메모리 트리아지, 격리형 동적 분석 제어, CTF 노트와 �
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688)
 ![React 18](https://img.shields.io/badge/React-18-61DAFB)
-![Backend tests](https://img.shields.io/badge/backend_tests-129_passing-3fb950)
-![Frontend tests](https://img.shields.io/badge/frontend_tests-21_passing-3fb950)
+![Backend tests](https://img.shields.io/badge/backend_tests-206_passing-3fb950)
+![Frontend tests](https://img.shields.io/badge/frontend_tests-31_passing-3fb950)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 ![Reversing Lab dashboard](docs/screenshots/01-dashboard.png)
@@ -89,15 +89,16 @@ docker compose up --build
 | 영역 | 기능 |
 |---|---|
 | 정적 분석 | metadata, mitigation, section, symbol, import/export, strings/IOC, hex, entropy |
-| 함수 분석 | bounded function recovery, xref, disassembly, CFG, call graph, program flow |
-| 디컴파일 | Ghidra headless adapter, 외부 도구가 없어도 동작하는 pseudo-C fallback |
+| 함수 분석 | bounded function recovery, xref, disassembly, 다중 아키텍처 CFG(x86/ARM/AArch64/MIPS), call graph, program flow |
+| 디컴파일 | Ghidra·r2ghidra·RetDec headless adapter(per-line source map), 외부 도구가 없어도 동작하는 pseudo-C fallback |
 | 탐지 | 근거·confidence가 포함된 패킹 및 난독화 finding, 명시적 UPX adapter |
 | 악성코드 트리아지 | import 기반 capability 분류(ATT&CK 매핑), Winsock ordinal 복원, 내장 시그니처 룰 엔진(YARA 스타일), 문자열 IOC 추출, 위험 점수·판정, Ghidra headless 호출부 확인(Ghidra 12.1.3로 실측) |
 | 메모리 | data-only fallback, process/thread/command-line/DLL/handle/VAD/network 정규화, bounded VAD hex/disassembly |
 | 동적 분석 | API와 분리된 provider 계약, 8개 guardrail, 기본 실행 차단 |
 | 조사 지원 | annotation, bookmark, CTF checklist/note/hypothesis, 안전한 decoder playground |
-| 저장·보고 | content-addressed storage, DB-backed jobs, JSON/Markdown/HTML export |
-| 운영 | Alembic migration, API-key roles, owner scope, hash-chained JSONL audit export, dry-run retention |
+| 저장·보고 | content-addressed storage, DB-backed jobs, 정적·동적·메모리 리포트 JSON/Markdown/HTML export |
+| 운영 | Alembic migration, API-key roles, owner scope, server-side rate limiting, hash-chained JSONL audit export, dry-run retention |
+| 관측성 | 요청 상관관계(`X-Request-ID`), 구조화 text/JSON 로그, Prometheus `/metrics`, liveness/readiness probe, 읽기 전용 부하 테스트 하네스 |
 
 ## 로컬 개발 실행
 
@@ -216,20 +217,22 @@ cd backend && ../.venv/bin/pytest
 cd ../frontend && npm test && npm run build && npm audit --audit-level=high
 ```
 
-현재 기준은 SQLite backend 129개와 PostgreSQL 전용 계약 1개 skip, frontend 21개 테스트 통과,
-production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제 악성코드가 포함되지
-않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend build/audit,
-Alembic drift와 whitespace를 검사합니다.
+현재 기준은 SQLite backend 206개 통과(PostgreSQL/외부 도구 전용 계약 3개 skip), frontend
+31개 테스트 통과, production build 성공, npm 취약점 0건입니다. 테스트 fixture에는 실제
+악성코드가 포함되지 않습니다. CI는 Python 3.10/3.11, PostgreSQL 16 migration 왕복, frontend
+build/audit, Alembic drift와 whitespace를 검사합니다.
 
 ## 현재 제한
 
-- 실제 VM sandbox provider와 RetDec/r2ghidra adapter는 아직 구현되지 않았습니다.
+- 실제 VM sandbox provider는 아직 구현되지 않았습니다(동적 분석 기본 비활성). Ghidra·
+  r2ghidra·RetDec 디컴파일러 adapter는 구현·실측 검증되었습니다.
 - Volatility 분석은 Windows full dump와 x86/x86-64에 한정되고, VAD 추출은 정규화된 전체
   VAD와 기본 1 MiB 상한만 지원합니다. environment variable, registry, YARA와 임의 부분 범위
   추출은 아직 지원하지 않습니다.
 - 함수 경계, 타입, indirect control flow, pseudo-C는 휴리스틱이므로 수동 검증이 필요합니다.
-- PostgreSQL 운영 배포의 backup/restore·HA·부하 검증과 OIDC, server-side rate limiting이
-  추가로 필요합니다.
+- server-side rate limiting과 PostgreSQL backup/restore·부하 테스트 하네스는 제공되며
+  ([Operations](docs/OPERATIONS.md) · [Observability](docs/OBSERVABILITY.md)), 다중 워커
+  HA와 OIDC/중앙 revocation은 추가로 필요합니다.
 - 내장 감사 이벤트는 애플리케이션 수준 append-only metadata입니다. 변조 방지 서명, 외부
   WORM 보관소 전송, 장기 archive/rotation 정책은 운영 환경에서 별도로 구성해야 합니다.
 
