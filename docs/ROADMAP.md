@@ -54,10 +54,12 @@
    syntax (`#0x..`, last-operand for `cbz`/`beq`), calls that Capstone also tags as
    jumps (`bl`/`blr`) no longer produce branch edges, and return idioms outside the
    `return` group (`bx lr`, `jr $ra`) and MIPS `jal`/`bal` calls are recognized by
-   mnemonic (source-line mapping already lands via the decompiler adapters). Remaining:
-   apply the same normalization to the function-inventory/call-graph pass
-   (`analysis/functions.py` still parses the first operand and misses MIPS `jal`
-   targets), and precise MIPS branch-delay-slot attribution.
+   mnemonic (source-line mapping already lands via the decompiler adapters). The
+   classification is shared (`disassembler/classify.py`) by both the CFG builder and the
+   function-inventory/call-graph pass, so `analysis/functions.py` now recovers MIPS
+   `jal` call targets and reads conditional-branch targets correctly. Remaining: precise
+   MIPS branch-delay-slot attribution (the delay-slot instruction currently starts a new
+   block instead of staying with its branch).
 
 ## Medium term
 
