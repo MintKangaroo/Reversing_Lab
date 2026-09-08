@@ -12,11 +12,8 @@ Only direct branches (with an immediate target) produce edges; indirect branches
 (``jmp rax``, ``br x0``, ``jr $t9``) have no statically known target and are recorded as
 block terminators without an outgoing edge.
 
-Control-flow classification is architecture-neutral: it reads Capstone instruction
-*groups* (``jump`` / ``call`` / ``return``) rather than x86 mnemonics, and normalizes the
-per-architecture operand syntax when reading a direct target. A few return/call idioms
-that Capstone does not put in a group are recognized by mnemonic: ARM ``bx lr`` and
-MIPS ``jr $ra`` (returns), and MIPS ``jal`` / ``bal`` / ``jalr`` (calls).
+Control-flow classification is architecture-neutral (x86/ARM/AArch64/MIPS) and lives in
+:mod:`reversing_lab.disassembler.classify`, shared with function/call-graph recovery.
 """
 
 from __future__ import annotations
@@ -25,25 +22,15 @@ from dataclasses import dataclass, replace
 
 from ..config import get_settings
 from ..parser.models import BinaryInfo
+from .classify import (
+    direct_target as _branch_target,
+    falls_through as _falls_through,
+    is_call as _is_call,
+    is_jump as _is_jump,
+    is_return as _is_return,
+    is_unconditional_jump as _is_unconditional_jump,
+)
 from .disassembler import Instruction, _resolve_engine, _code_section
-
-# Bare unconditional direct-branch mnemonics (x86 jmp; ARM/ARM64 b; MIPS j/b). A
-# conditional branch is a distinct mnemonic (je, beq, b.eq, cbz, bne, ...), so it is
-# never in this set and always falls through.
-_UNCONDITIONAL = {"jmp", "b", "j"}
-
-# Calls Capstone (MIPS) does not tag with the ``call`` group; matched by mnemonic.
-_MIPS_CALL_MNEMONICS = {"jal", "bal", "jalr"}
-
-# Return idioms Capstone does not tag with the ``return`` group: ARM ``bx lr`` /
-# ``bxj lr`` and MIPS ``jr $ra`` (``$31``).
-_ARM_RETURN_MNEMONICS = {"bx", "bxj"}
-_MIPS_RETURN_REGISTERS = {"$ra", "$31"}
-
-
-def _last_operand(op_str: str) -> str:
-    """The final comma-separated operand — where ARM/ARM64/MIPS print a branch target."""
-    return op_str.rsplit(",", 1)[-1].strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,51 +69,6 @@ class ControlFlowGraph:
     typed_edges: tuple[CfgEdge, ...] = ()
     loop_headers: tuple[int, ...] = ()
     unreachable_blocks: tuple[int, ...] = ()
-
-
-def _branch_target(insn: Instruction) -> int | None:
-    """Return the immediate target of a direct branch, or ``None`` if not static.
-
-    Normalizes per-architecture syntax: x86 ``0x401000``, ARM/ARM64 ``#0x1010``, and
-    the target as the last operand (ARM64 ``cbz w0, #0x18``; MIPS ``beq $a, $b, 0x24``).
-    """
-    operand = _last_operand(insn.op_str).lstrip("#")
-    if operand.startswith("0x"):
-        try:
-            return int(operand, 16)
-        except ValueError:
-            return None
-    return None
-
-
-def _is_call(insn: Instruction) -> bool:
-    return "call" in insn.groups or insn.mnemonic in _MIPS_CALL_MNEMONICS
-
-
-def _is_jump(insn: Instruction) -> bool:
-    # Calls (ARM ``bl``/``blr`` are in both the call and jump groups) are not branches.
-    return "jump" in insn.groups and not _is_call(insn)
-
-
-def _is_return(insn: Instruction) -> bool:
-    if "ret" in insn.groups or "return" in insn.groups:
-        return True
-    operand = _last_operand(insn.op_str)
-    if insn.mnemonic in _ARM_RETURN_MNEMONICS and operand == "lr":
-        return True
-    return insn.mnemonic == "jr" and operand in _MIPS_RETURN_REGISTERS
-
-
-def _is_unconditional_jump(insn: Instruction) -> bool:
-    """A branch that never falls through: a bare unconditional or any indirect jump."""
-    return _is_jump(insn) and (
-        insn.mnemonic in _UNCONDITIONAL or _branch_target(insn) is None
-    )
-
-
-def _falls_through(insn: Instruction) -> bool:
-    """A conditional branch continues to the next instruction when not taken."""
-    return _is_jump(insn) and not _is_unconditional_jump(insn)
 
 
 def build_cfg(info: BinaryInfo, data: bytes, address: int | None = None) -> ControlFlowGraph:

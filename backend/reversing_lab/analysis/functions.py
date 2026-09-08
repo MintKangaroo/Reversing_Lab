@@ -11,6 +11,14 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 
 from ..config import get_settings
+from ..disassembler.classify import (
+    direct_target,
+    falls_through,
+    is_call,
+    is_jump,
+    is_return,
+    is_unconditional_jump,
+)
 from ..disassembler.disassembler import Instruction, _resolve_engine
 from ..errors import DisassemblyError
 from ..parser.models import BinaryInfo, Section
@@ -28,16 +36,6 @@ from .models import (
 class _Decoded:
     instruction: Instruction
     section: Section
-
-
-def _direct_target(instruction: Instruction) -> int | None:
-    operand = instruction.op_str.split(",", 1)[0].strip().lstrip("#")
-    if not operand.startswith("0x"):
-        return None
-    try:
-        return int(operand, 16)
-    except ValueError:
-        return None
 
 
 def _contains(sections: tuple[Section, ...], address: int) -> bool:
@@ -120,9 +118,9 @@ def analyze_functions(info: BinaryInfo, data: bytes) -> tuple[FunctionAnalysis, 
     call_sites: dict[tuple[int, int], list[int]] = defaultdict(list)
     for item in decoded:
         instruction = item.instruction
-        if "call" not in instruction.groups:
+        if not is_call(instruction):
             continue
-        target = _direct_target(instruction)
+        target = direct_target(instruction)
         if target is not None and _contains(info.sections, target):
             candidate_reasons.setdefault(target, "direct call target")
 
@@ -163,11 +161,11 @@ def analyze_functions(info: BinaryInfo, data: bytes) -> tuple[FunctionAnalysis, 
         bounded: list[Instruction] = []
         for instruction in body:
             bounded.append(instruction)
-            if "jump" in instruction.groups:
-                target = _direct_target(instruction)
+            if is_jump(instruction):
+                target = direct_target(instruction)
                 if target is not None:
                     max_forward = max(max_forward, target)
-            if ("ret" in instruction.groups or "return" in instruction.groups) and (
+            if is_return(instruction) and (
                 instruction.address + instruction.size > max_forward
             ):
                 break
@@ -177,9 +175,9 @@ def analyze_functions(info: BinaryInfo, data: bytes) -> tuple[FunctionAnalysis, 
     callers: dict[int, set[int]] = defaultdict(set)
     for owner, body in function_bodies.items():
         for instruction in body:
-            if "call" not in instruction.groups:
+            if not is_call(instruction):
                 continue
-            target = _direct_target(instruction)
+            target = direct_target(instruction)
             if target in function_bodies:
                 callees[owner].add(target)
                 callers[target].add(owner)
@@ -190,15 +188,11 @@ def analyze_functions(info: BinaryInfo, data: bytes) -> tuple[FunctionAnalysis, 
         body = function_bodies[address]
         if not body:
             continue
-        branch_count = sum(
-            1
-            for instruction in body
-            if "jump" in instruction.groups and instruction.mnemonic not in {"jmp", "b", "br"}
-        )
+        branch_count = sum(1 for instruction in body if falls_through(instruction))
         block_starts = {address}
         for instruction in body:
-            if "jump" in instruction.groups:
-                target = _direct_target(instruction)
+            if is_jump(instruction):
+                target = direct_target(instruction)
                 if target is not None and address <= target < body[-1].address + body[-1].size:
                     block_starts.add(target)
                 block_starts.add(instruction.address + instruction.size)
@@ -223,7 +217,7 @@ def analyze_functions(info: BinaryInfo, data: bytes) -> tuple[FunctionAnalysis, 
                 return_type=None,
                 is_thunk=len(body) <= 2
                 and bool(body)
-                and body[-1].mnemonic in {"jmp", "b", "br"},
+                and is_unconditional_jump(body[-1]),
                 confidence=0.95 if provenance is ProvenanceKind.VERIFIED else 0.7,
                 provenance=provenance,
                 evidence=(
